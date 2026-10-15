@@ -73,6 +73,7 @@ export class CardDeck extends Script {
     private legendMark: Entity | null = null;
     private zoneLabel: Entity | null = null;
 
+    private loadToken = 0;
     private holding: Entity | null = null;
     private dragging = false;
     private pointerStart = { x: 0, y: 0 };
@@ -225,11 +226,15 @@ export class CardDeck extends Script {
     }
 
     load(list: DeckList) {
-        const board = this.entity.parent;
-        const resolved = board instanceof Entity ? resolveDeck(list) : null;
+        const token = ++this.loadToken;
         setCameraEnabled(this.app, true);
         this.clearPlay();
-        if (!resolved || !(board instanceof Entity)) {
+        void this.deal(list, token);
+    }
+
+    private async deal(list: DeckList, token: number) {
+        const resolved = await resolveDeck(list);
+        if (!resolved || token !== this.loadToken) {
             return;
         }
         const mainPile = CardDeck.piles.find((pile) => !pile.rune);
