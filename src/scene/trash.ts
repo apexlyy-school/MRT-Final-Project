@@ -131,6 +131,10 @@ export class CardTrash extends Script {
     }
 
     private tryDrop(card: Entity) {
+        const playable = card.script?.get('playableCard');
+        if (playable instanceof PlayableCard && playable.rune) {
+            return false;
+        }
         const position = card.getLocalPosition();
         if (!this.overZone(position.x, position.z)) {
             return false;

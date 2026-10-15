@@ -7,3 +7,24 @@ body {
 canvas {
     display: block;
 }
+
+.deck-picker {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #e4edf6;
+    font: 600 14px Arial, sans-serif;
+}
+
+.deck-picker select {
+    color: #e4edf6;
+    background: #1c355c;
+    border: 1px solid #5d7598;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: inherit;
+}

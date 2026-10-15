@@ -1,8 +1,10 @@
 import { Entity, StandardMaterial } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
+import { loadDeckLists } from './cardCatalog.ts';
 import { bindCardMotion } from './cardMotion.ts';
 import { addDeck } from './deck.ts';
+import { mountDeckPicker } from './deckPicker.ts';
 import { addHand } from './hand.ts';
 import { addScoreTrack, scoreColumnMidOffset, scoreRadius } from './scoreTrack.ts';
 import { addTrash } from './trash.ts';
@@ -172,11 +174,12 @@ export const createBoard = (app: AppBase) => {
     addCard(board, 'chosen-champion', championX, identityZ, blankCard);
 
     addCardZone(board, 'deck', legendX, pileZ);
-    addDeck(board, app.graphicsDevice, legendX, pileZ, cardWidth, cardDepth);
+    const deck = addDeck(board, legendX, pileZ, cardWidth, cardDepth);
     addCardZone(board, 'trash', championX, pileZ);
     addTrash(board, championX, pileZ, cardWidth, cardDepth);
     const runeDeckX = -3.45;
     addCardZone(board, 'rune-deck', runeDeckX, pileZ);
+    addDeck(board, runeDeckX, pileZ, cardWidth, cardDepth, true);
 
     const pileHalf = (cardWidth + cardFit) / 2;
     const handMargin = 0.16;
@@ -185,6 +188,16 @@ export const createBoard = (app: AppBase) => {
     const handDepth = cardDepth + cardFit;
     addZone(board, 'hand', (handLeft + handRight) / 2, pileZ, handRight - handLeft, handDepth);
     addHand(board, handLeft, handRight, pileZ, handDepth, cardWidth);
+    const runeAreaLeft = leftZoneX - zoneWidth / 2;
+    const runeAreaRight = leftZoneX + zoneWidth / 2;
+    addHand(board, runeAreaLeft, runeAreaRight, identityZ, playerZoneDepth, cardWidth, true, cardDepth);
+
+    const lists = loadDeckLists();
+    const initial = lists.find((list) => list.name === 'Sample') ?? lists[0];
+    if (initial) {
+        mountDeckPicker(deck, lists, initial);
+        deck.load(initial);
+    }
 
     // Sit the nameplate just below score 0, clear of the zigzag track.
     const plateDepth = 0.55;

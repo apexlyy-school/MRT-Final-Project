@@ -57,10 +57,15 @@ const loadCardTexture = (device: GraphicsDevice, url: string) => new Promise<Tex
 let deckDrop: ((card: Entity) => boolean) | null = null;
 let deckRelease: ((card: Entity) => void) | null = null;
 let deckIsTop: ((card: Entity) => boolean) | null = null;
+let deckBury: ((card: Entity) => boolean) | null = null;
 let handDrop: ((card: Entity) => boolean) | null = null;
 let handDraw: ((card: Entity) => void) | null = null;
 let handRelease: ((card: Entity) => void) | null = null;
 let handOwns: ((card: Entity, x: number, z: number) => boolean) | null = null;
+let runeDrop: ((card: Entity) => boolean) | null = null;
+let runeDraw: ((card: Entity) => void) | null = null;
+let runeRelease: ((card: Entity) => void) | null = null;
+let runeOwns: ((card: Entity, x: number, z: number) => boolean) | null = null;
 let trashDrop: ((card: Entity) => boolean) | null = null;
 let trashSend: ((card: Entity) => void) | null = null;
 let trashRelease: ((card: Entity) => void) | null = null;
@@ -74,9 +79,11 @@ export const setDeckDrop = (handler: ((card: Entity) => boolean) | null) => {
 export const setDeckPile = (handlers: {
     release: (card: Entity) => void;
     isTop: (card: Entity) => boolean;
+    bury: (card: Entity) => boolean;
 } | null) => {
     deckRelease = handlers?.release ?? null;
     deckIsTop = handlers?.isTop ?? null;
+    deckBury = handlers?.bury ?? null;
 };
 
 /** The hand registers draw, drop, and overlap picking. */
@@ -99,6 +106,27 @@ export const offerToHand = (card: Entity) => handDrop?.(card) ?? false;
 export const drawToHand = (card: Entity) => {
     handDraw?.(card);
 };
+
+/** The rune area registers the same row behaviour as the hand. */
+export const setRuneArea = (handlers: {
+    drop: (card: Entity) => boolean;
+    draw: (card: Entity) => void;
+    release: (card: Entity) => void;
+    owns: (card: Entity, x: number, z: number) => boolean;
+} | null) => {
+    runeDrop = handlers?.drop ?? null;
+    runeDraw = handlers?.draw ?? null;
+    runeRelease = handlers?.release ?? null;
+    runeOwns = handlers?.owns ?? null;
+};
+
+export const offerToRuneArea = (card: Entity) => runeDrop?.(card) ?? false;
+
+export const drawToRuneArea = (card: Entity) => {
+    runeDraw?.(card);
+};
+
+export const buryInMatchingDeck = (card: Entity) => deckBury?.(card) ?? false;
 
 /** The trash registers drop, right-click discard, and removal when a card is dragged out. */
 export const setTrash = (handlers: {
@@ -136,6 +164,8 @@ export class PlayableCard extends Script {
     inDeck = false;
     inHand = false;
     inTrash = false;
+    inRuneArea = false;
+    rune = false;
 
     private faceMaterial: StandardMaterial | null = null;
     private art: Texture | null = null;
@@ -167,6 +197,9 @@ export class PlayableCard extends Script {
         if (this.inHand && handOwns && !handOwns(this.entity, worldX, worldZ)) {
             return;
         }
+        if (this.inRuneArea && runeOwns && !runeOwns(this.entity, worldX, worldZ)) {
+            return;
+        }
         event.stopPropagation();
         const position = this.entity.getPosition();
         this.holding = true;
@@ -194,6 +227,10 @@ export class PlayableCard extends Script {
                 this.inTrash = false;
                 trashRelease?.(this.entity);
             }
+            if (this.inRuneArea) {
+                this.inRuneArea = false;
+                runeRelease?.(this.entity);
+            }
         }
         if (!this.dragging || !this.rayTable(event)) {
             return;
@@ -215,7 +252,10 @@ export class PlayableCard extends Script {
         this.holding = false;
         setCameraEnabled(this.app, true);
         if (this.dragging) {
-            if (deckDrop?.(this.entity) || handDrop?.(this.entity) || trashDrop?.(this.entity)) {
+            const placed = this.rune
+                ? offerToDeck(this.entity) || offerToRuneArea(this.entity)
+                : (deckDrop?.(this.entity) ?? false) || (handDrop?.(this.entity) ?? false) || (trashDrop?.(this.entity) ?? false);
+            if (placed) {
                 return;
             }
             const position = this.entity.getLocalPosition();
@@ -267,6 +307,20 @@ export class PlayableCard extends Script {
         if (this.inDeck && !fromDeck) {
             return;
         }
+        if (this.rune) {
+            if (!fromDeck && !this.inRuneArea && !this.faceUp) {
+                return;
+            }
+            if (this.inRuneArea && runeOwns && !runeOwns(this.entity, worldX, worldZ)) {
+                return;
+            }
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            this.suppressCamera = true;
+            setCameraEnabled(this.app, false);
+            buryInMatchingDeck(this.entity);
+            return;
+        }
         if (!fromDeck && !this.inHand && !this.faceUp) {
             return;
         }
@@ -290,6 +344,10 @@ export class PlayableCard extends Script {
             this.inTrash = false;
             trashRelease?.(this.entity);
         }
+        if (this.inRuneArea) {
+            this.inRuneArea = false;
+            runeRelease?.(this.entity);
+        }
         this.inDeck = true;
         this.tapped = false;
         this.yaw = 0;
@@ -304,8 +362,34 @@ export class PlayableCard extends Script {
             this.inTrash = false;
             trashRelease?.(this.entity);
         }
+        if (this.inRuneArea) {
+            this.inRuneArea = false;
+            runeRelease?.(this.entity);
+        }
         this.inDeck = false;
         this.inHand = true;
+        this.tapped = false;
+        this.yaw = 0;
+        this.yawTarget = 0;
+        this.entity.setLocalEulerAngles(0, 0, 0);
+        this.setFaceUp(true);
+    }
+
+    /** Face up in the rune area. A click turns it 90 degrees. */
+    joinRuneArea() {
+        if (this.inDeck) {
+            this.inDeck = false;
+            deckRelease?.(this.entity);
+        }
+        if (this.inHand) {
+            this.inHand = false;
+            handRelease?.(this.entity);
+        }
+        if (this.inTrash) {
+            this.inTrash = false;
+            trashRelease?.(this.entity);
+        }
+        this.inRuneArea = true;
         this.tapped = false;
         this.yaw = 0;
         this.yawTarget = 0;
@@ -318,6 +402,10 @@ export class PlayableCard extends Script {
         if (this.inHand) {
             this.inHand = false;
             handRelease?.(this.entity);
+        }
+        if (this.inRuneArea) {
+            this.inRuneArea = false;
+            runeRelease?.(this.entity);
         }
         if (this.inDeck) {
             this.inDeck = false;
@@ -509,13 +597,18 @@ const textureFor = (device: GraphicsDevice, url: string) => {
 let sharedFace: Mesh | null = null;
 let sharedEdge: Mesh | null = null;
 
+const keepMesh = (mesh: Mesh) => {
+    mesh.incRefCount();
+    return mesh;
+};
+
 const faceMesh = (device: GraphicsDevice, width: number, depth: number) => {
-    sharedFace ??= roundedFaceMesh(device, width, depth);
+    sharedFace ??= keepMesh(roundedFaceMesh(device, width, depth));
     return sharedFace;
 };
 
 const edgeMesh = (device: GraphicsDevice, width: number, depth: number) => {
-    sharedEdge ??= roundedEdgeMesh(device, width, depth, 0.02);
+    sharedEdge ??= keepMesh(roundedEdgeMesh(device, width, depth, 0.02));
     return sharedEdge;
 };
 
@@ -528,7 +621,8 @@ export const createPlayableCard = (
     depth: number,
     artUrl: string,
     backUrl: string,
-    inDeck: boolean
+    inDeck: boolean,
+    rune = false
 ) => {
     const card = new Entity('card');
     card.setLocalPosition(x, restY, z);
@@ -549,7 +643,7 @@ export const createPlayableCard = (
     if (!scripts) {
         throw new Error('Failed to create the card');
     }
-    const playable = scripts.create(PlayableCard, { properties: { width, depth, inDeck } });
+    const playable = scripts.create(PlayableCard, { properties: { width, depth, inDeck, rune } });
     if (!playable) {
         throw new Error('Failed to create the card');
     }

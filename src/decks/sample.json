@@ -1,0 +1,13 @@
+{
+    "name": "Sample",
+    "main": [
+        { "id": "OGN-037", "count": 2 },
+        { "id": "OGN-038", "count": 3 },
+        { "id": "OGN-039a", "count": 1 },
+        { "id": "OGN-040", "count": 2 }
+    ],
+    "runes": [
+        { "id": "OGN-007", "count": 4 },
+        { "id": "OGN-214", "count": 2 }
+    ]
+}
