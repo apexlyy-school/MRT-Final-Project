@@ -1,15 +1,15 @@
 {
     "name": "Sample",
     "main": [
-        { "id": "OGN-037", "count": 2 },
-        { "id": "OGN-038", "count": 3 },
-        { "id": "OGN-039a", "count": 1 },
-        { "id": "OGN-040", "count": 2 }
+        { "name": "Immortal Phoenix", "count": 2 },
+        { "name": "Kadregrin the Infernal", "count": 3 },
+        { "name": "Kai'Sa - Survivor (Alternate Art)", "count": 1 },
+        { "name": "Seal of Rage", "count": 2 }
     ],
     "runes": [
-        { "id": "OGN-007", "count": 4 },
-        { "id": "OGN-214", "count": 2 }
+        { "name": "Fury Rune", "count": 4 },
+        { "name": "Order Rune", "count": 2 }
     ],
-    "legend": "OGN-253",
-    "champion": "OGN-243a"
+    "legend": "Darius - Hand of Noxus",
+    "champion": "Darius - Executioner (Alternate Art)"
 }

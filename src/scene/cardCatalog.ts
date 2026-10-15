@@ -1,7 +1,7 @@
-import { proxiedCardImage, riftboundImage } from './riftcodex.ts';
+import { cardByName, proxiedCardImage } from './riftcodex.ts';
 
 export type DeckEntry = {
-    id: string;
+    name: string;
     count: number;
 };
 
@@ -9,6 +9,7 @@ export type DeckList = {
     name: string;
     main: DeckEntry[];
     runes?: DeckEntry[];
+    battlefields?: DeckEntry[];
     legend?: string;
     champion?: string;
 };
@@ -42,7 +43,7 @@ for (const [path, url] of Object.entries(artFiles)) {
 }
 
 const isEntries = (value: unknown): value is DeckEntry[] => Array.isArray(value)
-    && value.every((entry) => typeof entry?.id === 'string' && typeof entry.count === 'number');
+    && value.every((entry) => typeof entry?.name === 'string' && typeof entry.count === 'number');
 
 const isDeckList = (value: unknown): value is DeckList => {
     if (!value || typeof value !== 'object') {
@@ -52,32 +53,33 @@ const isDeckList = (value: unknown): value is DeckList => {
     return typeof list.name === 'string'
         && isEntries(list.main)
         && (list.runes === undefined || isEntries(list.runes))
+        && (list.battlefields === undefined || isEntries(list.battlefields))
         && (list.legend === undefined || typeof list.legend === 'string')
         && (list.champion === undefined || typeof list.champion === 'string');
 };
 
-const artFor = async (id: string, deckName: string) => {
-    const remote = await riftboundImage(id);
-    if (remote) {
-        return proxiedCardImage(remote);
+const artFor = async (name: string, deckName: string) => {
+    const card = await cardByName(name);
+    if (card) {
+        return proxiedCardImage(card.image);
     }
-    console.warn(`Deck "${deckName}" was not loaded because there is no image for "${id}".`);
+    console.warn(`Deck "${deckName}" was not loaded because there is no image for "${name}".`);
     return null;
 };
 
 const expand = async (entries: DeckEntry[], deckName: string) => {
     for (const entry of entries) {
         if (!Number.isFinite(entry.count) || entry.count < 0) {
-            console.warn(`Deck "${deckName}" was not loaded because "${entry.id}" has an invalid count.`);
+            console.warn(`Deck "${deckName}" was not loaded because "${entry.name}" has an invalid count.`);
             return null;
         }
     }
-    const ids = [...new Set(entries.filter((entry) => Math.floor(entry.count) >= 1).map((entry) => entry.id))];
+    const cardNames = [...new Set(entries.filter((entry) => Math.floor(entry.count) >= 1).map((entry) => entry.name))];
     const found = new Map<string, string>();
-    await Promise.all(ids.map(async (id) => {
-        const art = await artFor(id, deckName);
+    await Promise.all(cardNames.map(async (name) => {
+        const art = await artFor(name, deckName);
         if (art) {
-            found.set(id, art);
+            found.set(name, art);
         }
     }));
     const copies: string[] = [];
@@ -86,7 +88,7 @@ const expand = async (entries: DeckEntry[], deckName: string) => {
         if (count < 1) {
             continue;
         }
-        const art = found.get(entry.id);
+        const art = found.get(entry.name);
         if (!art) {
             return null;
         }
@@ -108,19 +110,19 @@ export const resolveDeck = async (list: DeckList) => {
         console.warn(`Deck "${list.name}" was not loaded because rune back.png is missing.`);
         return null;
     }
-    const legendId = list.legend?.trim() ?? '';
-    if (legendId && !legendBackUrl) {
+    const legendName = list.legend?.trim() ?? '';
+    if (legendName && !legendBackUrl) {
         console.warn(`Deck "${list.name}" was not loaded because legend back.png is missing.`);
         return null;
     }
-    const championId = list.champion?.trim() ?? '';
+    const championName = list.champion?.trim() ?? '';
     const [copies, runes, legendArt, championArt] = await Promise.all([
         expand(list.main, list.name),
         expand(runeEntries, list.name),
-        legendId ? artFor(legendId, list.name) : Promise.resolve(null),
-        championId ? artFor(championId, list.name) : Promise.resolve(null)
+        legendName ? artFor(legendName, list.name) : Promise.resolve(null),
+        championName ? artFor(championName, list.name) : Promise.resolve(null)
     ]);
-    if (!copies || !runes || (legendId && !legendArt) || (championId && !championArt)) {
+    if (!copies || !runes || (legendName && !legendArt) || (championName && !championArt)) {
         return null;
     }
     return {
@@ -128,8 +130,8 @@ export const resolveDeck = async (list: DeckList) => {
         copies,
         runeBack: runeBackUrl,
         runes,
-        legend: legendId && legendArt ? { art: legendArt, back: legendBackUrl } : null,
-        champion: championId && championArt ? { art: championArt, back: backUrl } : null
+        legend: legendName && legendArt ? { art: legendArt, back: legendBackUrl } : null,
+        champion: championName && championArt ? { art: championArt, back: backUrl } : null
     };
 };
 

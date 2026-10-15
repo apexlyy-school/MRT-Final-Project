@@ -1,45 +1,84 @@
-const cardsUrl = 'https://api.riftcodex.com/cards/riftbound/';
+const nameUrl = 'https://api.riftcodex.com/cards/name';
 
 type RiftCard = {
-    riftbound_id?: string;
+    name?: string;
+    collector_number?: number;
+    set?: { set_id?: string };
     media?: { image_url?: string };
-    metadata?: { alternate_art?: boolean };
+    metadata?: { alternate_art?: boolean; signature?: boolean; overnumbered?: boolean };
 };
 
-const images = new Map<string, Promise<string | null>>();
-
-const matchesId = (card: RiftCard, id: string) => {
-    const riftboundId = card.riftbound_id?.toLowerCase() ?? '';
-    return riftboundId === id || riftboundId.startsWith(`${id}-`);
+export type NamedCard = {
+    name: string;
+    image: string;
 };
 
-const fetchImage = async (id: string) => {
-    try {
-        const response = await fetch(`${cardsUrl}${encodeURIComponent(id)}`);
-        if (!response.ok) {
-            return null;
-        }
-        const cards: unknown = await response.json();
-        if (!Array.isArray(cards)) {
-            return null;
-        }
-        const exact = cards.filter((card): card is RiftCard => matchesId(card as RiftCard, id));
-        const card = exact.find((item) => item.metadata?.alternate_art !== true) ?? exact[0];
-        return card?.media?.image_url || null;
-    } catch {
+const names = new Map<string, Promise<NamedCard | null>>();
+
+const printingRank = (card: RiftCard) => {
+    const meta = card.metadata;
+    return (meta?.alternate_art ? 8 : 0)
+        + (meta?.signature ? 4 : 0)
+        + (meta?.overnumbered ? 2 : 0)
+        + (card.set?.set_id?.toUpperCase() === 'OGN' ? 0 : 1);
+};
+
+const choosePrinting = (cards: RiftCard[]) => {
+    return [...cards].sort((a, b) => {
+        return printingRank(a) - printingRank(b) || (a.collector_number ?? 0) - (b.collector_number ?? 0);
+    })[0];
+};
+
+const fetchNamed = async (query: string) => {
+    const response = await fetch(`${nameUrl}?exact=${encodeURIComponent(query)}&size=100`);
+    if (!response.ok) {
+        return [];
+    }
+    const body: unknown = await response.json();
+    if (!body || typeof body !== 'object' || !('items' in body) || !Array.isArray(body.items)) {
+        return [];
+    }
+    return body.items as RiftCard[];
+};
+
+const asNamedCard = (card: RiftCard | undefined): NamedCard | null => {
+    const name = card?.name?.trim();
+    const image = card?.media?.image_url;
+    if (!name || !image) {
         return null;
     }
+    return { name, image };
 };
 
-/** Face image URL for a Riftbound id such as OGN-037, or null when the API has no exact match. */
-export const riftboundImage = (id: string) => {
-    const key = id.trim().toLowerCase();
-    const cached = images.get(key);
+const resolveName = async (name: string) => {
+    const queries = [name];
+    const dashed = name.replace(/,\s*/g, ' - ');
+    if (dashed !== name) {
+        queries.push(dashed);
+    }
+    for (const query of queries) {
+        try {
+            const cards = (await fetchNamed(query)).filter((card) => card.name && card.media?.image_url);
+            const found = asNamedCard(choosePrinting(cards));
+            if (found) {
+                return found;
+            }
+        } catch {
+            return null;
+        }
+    }
+    return null;
+};
+
+/** The Riftcodex card for a deck name, or null when there is no exact match. */
+export const cardByName = (name: string) => {
+    const key = name.trim().toLowerCase();
+    const cached = names.get(key);
     if (cached) {
         return cached;
     }
-    const pending = fetchImage(key);
-    images.set(key, pending);
+    const pending = resolveName(name.trim());
+    names.set(key, pending);
     return pending;
 };
 

@@ -1,0 +1,36 @@
+{
+    "name": "Deck 1",
+    "legend": "Ezreal - Prodigal Explorer",
+    "champion": "Ezreal, Prodigy",
+    "main": [
+        { "name": "Arcane Shift", "count": 1 },
+        { "name": "Bellows Breath", "count": 3 },
+        { "name": "Bewitching Spirit", "count": 3 },
+        { "name": "Deadly Flourish", "count": 2 },
+        { "name": "Fizz - Trickster", "count": 3 },
+        { "name": "Gust", "count": 1 },
+        { "name": "Hard Bargain", "count": 1 },
+        { "name": "Pack of Wonders", "count": 3 },
+        { "name": "Pickpocket", "count": 1 },
+        { "name": "Singularity", "count": 1 },
+        { "name": "Sprite Fountain", "count": 1 },
+        { "name": "Stacked Deck", "count": 3 },
+        { "name": "Star-Crossed", "count": 2 },
+        { "name": "Stupefy", "count": 3 },
+        { "name": "The List", "count": 2 },
+        { "name": "Thousand-Tailed Watcher", "count": 2 },
+        { "name": "Treasure Trove", "count": 2 },
+        { "name": "Turn to Dust", "count": 1 },
+        { "name": "Vex - Apathetic", "count": 1 },
+        { "name": "Wages of Pain", "count": 3 }
+    ],
+    "battlefields": [
+        { "name": "Frozen Fortress", "count": 1 },
+        { "name": "Heisho, Shell of the World", "count": 1 },
+        { "name": "Sigil of the Storm", "count": 1 }
+    ],
+    "runes": [
+        { "name": "Chaos Rune", "count": 6 },
+        { "name": "Mind Rune", "count": 6 }
+    ]
+}

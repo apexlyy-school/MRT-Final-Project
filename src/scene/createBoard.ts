@@ -8,6 +8,7 @@ import { addDeck } from './deck.ts';
 import { mountDeckPicker } from './deckPicker.ts';
 import { addZoneLabel } from './emptySlot.ts';
 import { addHand } from './hand.ts';
+import { takeImportedDeck } from './importDeck.ts';
 import { addScoreTrack, scoreColumnMidOffset, scoreRadius } from './scoreTrack.ts';
 import { addTrash } from './trash.ts';
 
@@ -192,7 +193,8 @@ export const createBoard = (app: AppBase) => {
     addHand(board, baseLeft, baseRight, identityZ, playerZoneDepth, cardWidth, false, cardDepth, true);
 
     const lists = loadDeckLists();
-    const initial = lists.find((list) => list.name === 'Sample') ?? lists[0];
+    const imported = takeImportedDeck();
+    const initial = lists.find((list) => list.name === imported) ?? lists.find((list) => list.name === 'Sample') ?? lists[0];
     if (initial) {
         const pileHalfDepth = (cardDepth + cardFit) / 2;
         const pileHalfWidth = (cardWidth + cardFit) / 2;
