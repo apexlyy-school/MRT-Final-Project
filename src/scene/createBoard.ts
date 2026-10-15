@@ -1,6 +1,8 @@
 import { Entity, StandardMaterial } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
+import { addDeck } from './deck.ts';
+import { addHand } from './hand.ts';
 import { addScoreTrack, scoreColumnMidOffset, scoreRadius } from './scoreTrack.ts';
 
 // Colors sampled from the Rift Atlas match screen: navy field, slate zone lines, teal accent.
@@ -126,8 +128,9 @@ export const createBoard = (app: AppBase) => {
     const baseRight = rightZoneX + zoneWidth / 2;
     const tappedHalfWidth = cardDepth / 2;
     const legendX = baseRight + tappedHalfWidth + 0.28;
-    // Champion stays clear of the tapped legend and is centered on the trash, legend on the deck.
-    const championX = legendX + tappedHalfWidth + 0.28 + cardWidth / 2;
+    // Champion stays just clear of a tapped legend, and is centered on the trash. Legend stays on the deck.
+    const identityGap = 0.12;
+    const championX = legendX + tappedHalfWidth + identityGap + cardWidth / 2;
     const identityZ = playerNear - 0.02;
     const pileZ = identityZ + cardDepth / 2 + 0.14 + (cardDepth + cardFit) / 2;
     const deckRight = legendX + (cardWidth + cardFit) / 2;
@@ -166,8 +169,18 @@ export const createBoard = (app: AppBase) => {
     addCard(board, 'chosen-champion', championX, identityZ, blankCard);
 
     addCardZone(board, 'deck', legendX, pileZ);
+    addDeck(board, app.graphicsDevice, legendX, pileZ, cardWidth, cardDepth);
     addCardZone(board, 'trash', championX, pileZ);
-    addCardZone(board, 'rune-deck', -3.45, pileZ);
+    const runeDeckX = -3.45;
+    addCardZone(board, 'rune-deck', runeDeckX, pileZ);
+
+    const pileHalf = (cardWidth + cardFit) / 2;
+    const handMargin = 0.16;
+    const handLeft = runeDeckX + pileHalf + handMargin;
+    const handRight = legendX - pileHalf - handMargin;
+    const handDepth = cardDepth + cardFit;
+    addZone(board, 'hand', (handLeft + handRight) / 2, pileZ, handRight - handLeft, handDepth);
+    addHand(board, handLeft, handRight, pileZ, handDepth, cardWidth);
 
     // Sit the nameplate just below score 0, clear of the zigzag track.
     const plateDepth = 0.55;
