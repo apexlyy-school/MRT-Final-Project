@@ -66,6 +66,8 @@ let runeDrop: ((card: Entity) => boolean) | null = null;
 let runeDraw: ((card: Entity) => void) | null = null;
 let runeRelease: ((card: Entity) => void) | null = null;
 let runeOwns: ((card: Entity, x: number, z: number) => boolean) | null = null;
+let championDrop: ((card: Entity) => boolean) | null = null;
+let championRelease: ((card: Entity) => void) | null = null;
 let trashDrop: ((card: Entity) => boolean) | null = null;
 let trashSend: ((card: Entity) => void) | null = null;
 let trashRelease: ((card: Entity) => void) | null = null;
@@ -128,6 +130,17 @@ export const drawToRuneArea = (card: Entity) => {
 
 export const buryInMatchingDeck = (card: Entity) => deckBury?.(card) ?? false;
 
+/** The chosen-champion slot registers drop and removal. */
+export const setChampionZone = (handlers: {
+    drop: (card: Entity) => boolean;
+    release: (card: Entity) => void;
+} | null) => {
+    championDrop = handlers?.drop ?? null;
+    championRelease = handlers?.release ?? null;
+};
+
+export const offerToChampion = (card: Entity) => championDrop?.(card) ?? false;
+
 /** The trash registers drop, right-click discard, and removal when a card is dragged out. */
 export const setTrash = (handlers: {
     drop: (card: Entity) => boolean;
@@ -166,6 +179,9 @@ export class PlayableCard extends Script {
     inTrash = false;
     inRuneArea = false;
     rune = false;
+    pinned = false;
+    champion = false;
+    inChampion = false;
 
     private faceMaterial: StandardMaterial | null = null;
     private art: Texture | null = null;
@@ -219,6 +235,9 @@ export class PlayableCard extends Script {
         const dy = event.clientY - this.pointerStart.y;
         if (!this.dragging && dx * dx + dy * dy > clickSlop * clickSlop) {
             this.dragging = true;
+            if (this.pinned) {
+                return;
+            }
             if (this.inHand) {
                 this.inHand = false;
                 handRelease?.(this.entity);
@@ -231,8 +250,12 @@ export class PlayableCard extends Script {
                 this.inRuneArea = false;
                 runeRelease?.(this.entity);
             }
+            if (this.inChampion) {
+                this.inChampion = false;
+                championRelease?.(this.entity);
+            }
         }
-        if (!this.dragging || !this.rayTable(event)) {
+        if (this.pinned || !this.dragging || !this.rayTable(event)) {
             return;
         }
         cancelCardMotion(this.entity);
@@ -252,9 +275,12 @@ export class PlayableCard extends Script {
         this.holding = false;
         setCameraEnabled(this.app, true);
         if (this.dragging) {
+            if (this.pinned) {
+                return;
+            }
             const placed = this.rune
                 ? offerToDeck(this.entity) || offerToRuneArea(this.entity)
-                : (deckDrop?.(this.entity) ?? false) || (handDrop?.(this.entity) ?? false) || (trashDrop?.(this.entity) ?? false);
+                : offerToChampion(this.entity) || (deckDrop?.(this.entity) ?? false) || (handDrop?.(this.entity) ?? false) || (trashDrop?.(this.entity) ?? false);
             if (placed) {
                 return;
             }
@@ -262,7 +288,7 @@ export class PlayableCard extends Script {
             this.entity.setLocalPosition(position.x, restY, position.z);
             return;
         }
-        if (this.inHand) {
+        if (this.inHand || this.inChampion) {
             return;
         }
         this.tapped = !this.tapped;
@@ -295,7 +321,7 @@ export class PlayableCard extends Script {
     }
 
     private discard(event: PointerEvent) {
-        if (this.holding || this.inTrash || !this.rayTable(event)) {
+        if (this.pinned || this.holding || this.inTrash || !this.rayTable(event)) {
             return;
         }
         const worldX = hitPoint.x;
@@ -348,6 +374,10 @@ export class PlayableCard extends Script {
             this.inRuneArea = false;
             runeRelease?.(this.entity);
         }
+        if (this.inChampion) {
+            this.inChampion = false;
+            championRelease?.(this.entity);
+        }
         this.inDeck = true;
         this.tapped = false;
         this.yaw = 0;
@@ -365,6 +395,10 @@ export class PlayableCard extends Script {
         if (this.inRuneArea) {
             this.inRuneArea = false;
             runeRelease?.(this.entity);
+        }
+        if (this.inChampion) {
+            this.inChampion = false;
+            championRelease?.(this.entity);
         }
         this.inDeck = false;
         this.inHand = true;
@@ -389,6 +423,10 @@ export class PlayableCard extends Script {
             this.inTrash = false;
             trashRelease?.(this.entity);
         }
+        if (this.inChampion) {
+            this.inChampion = false;
+            championRelease?.(this.entity);
+        }
         this.inRuneArea = true;
         this.tapped = false;
         this.yaw = 0;
@@ -411,7 +449,37 @@ export class PlayableCard extends Script {
             this.inDeck = false;
             deckRelease?.(this.entity);
         }
+        if (this.inChampion) {
+            this.inChampion = false;
+            championRelease?.(this.entity);
+        }
         this.inTrash = true;
+        this.tapped = false;
+        this.yaw = 0;
+        this.yawTarget = 0;
+        this.entity.setLocalEulerAngles(0, 0, 0);
+        this.setFaceUp(true);
+    }
+
+    /** Face up in the chosen-champion slot. A click does not turn it. */
+    joinChampion() {
+        if (this.inDeck) {
+            this.inDeck = false;
+            deckRelease?.(this.entity);
+        }
+        if (this.inHand) {
+            this.inHand = false;
+            handRelease?.(this.entity);
+        }
+        if (this.inTrash) {
+            this.inTrash = false;
+            trashRelease?.(this.entity);
+        }
+        if (this.inRuneArea) {
+            this.inRuneArea = false;
+            runeRelease?.(this.entity);
+        }
+        this.inChampion = true;
         this.tapped = false;
         this.yaw = 0;
         this.yawTarget = 0;
@@ -622,7 +690,9 @@ export const createPlayableCard = (
     artUrl: string,
     backUrl: string,
     inDeck: boolean,
-    rune = false
+    rune = false,
+    pinned = false,
+    champion = false
 ) => {
     const card = new Entity('card');
     card.setLocalPosition(x, restY, z);
@@ -643,7 +713,7 @@ export const createPlayableCard = (
     if (!scripts) {
         throw new Error('Failed to create the card');
     }
-    const playable = scripts.create(PlayableCard, { properties: { width, depth, inDeck, rune } });
+    const playable = scripts.create(PlayableCard, { properties: { width, depth, inDeck, rune, pinned, champion } });
     if (!playable) {
         throw new Error('Failed to create the card');
     }

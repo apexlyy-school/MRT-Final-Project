@@ -9,5 +9,7 @@
     "runes": [
         { "id": "OGN-007", "count": 4 },
         { "id": "OGN-214", "count": 2 }
-    ]
+    ],
+    "legend": "OGN-253",
+    "champion": "OGN-243a"
 }

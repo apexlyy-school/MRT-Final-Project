@@ -1,6 +1,7 @@
 import { Entity, Script } from 'playcanvas';
 
 import { moveCardTo } from './cardMotion.ts';
+import { addZoneLabel } from './emptySlot.ts';
 import { PlayableCard, setHand, setRuneArea } from './playableCard.ts';
 
 const cardGap = 0.08;
@@ -24,7 +25,14 @@ export class CardHand extends Script {
     cardDepth = 1.02;
     rune = false;
 
+    private zoneLabel: Entity | null = null;
+
     initialize() {
+        const board = this.entity.parent;
+        if (board instanceof Entity) {
+            const label = this.rune ? 'Rune Area' : 'Hand';
+            this.zoneLabel = addZoneLabel(board, this.app.graphicsDevice, (this.left + this.right) / 2, this.centerZ, label, `${label}-label`);
+        }
         const handlers = {
             drop: (card: Entity) => this.tryDrop(card),
             draw: (card: Entity) => this.draw(card),
@@ -42,7 +50,14 @@ export class CardHand extends Script {
             } else {
                 setHand(null);
             }
+            this.zoneLabel?.destroy();
         });
+    }
+
+    syncLabel() {
+        if (this.zoneLabel) {
+            this.zoneLabel.enabled = this.cards.length === 0;
+        }
     }
 
     private draw(card: Entity) {
@@ -144,6 +159,7 @@ export class CardHand extends Script {
             const x = mid + (index - (count - 1) / 2) * step;
             moveCardTo(card, x, index * stackStep, this.centerZ);
         });
+        this.syncLabel();
     }
 }
 

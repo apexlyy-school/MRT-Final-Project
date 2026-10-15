@@ -4,12 +4,15 @@ import type { AppBase } from 'playcanvas';
 import { resolveDeck } from './cardCatalog.ts';
 import type { DeckList } from './cardCatalog.ts';
 import { cancelCardMotion, moveCardTo } from './cardMotion.ts';
+import { CardChampion } from './champion.ts';
+import { addEmptySlot, addZoneLabel } from './emptySlot.ts';
 import { CardHand } from './hand.ts';
 import {
     createPlayableCard,
     drawToHand,
     drawToRuneArea,
     insideRoundedCard,
+    offerToChampion,
     offerToHand,
     offerToRuneArea,
     offerToTrash,
@@ -63,6 +66,11 @@ export class CardDeck extends Script {
     width = 0.7;
     depth = 1.02;
     rune = false;
+    anchorLegend = false;
+    legendZ = 0;
+
+    private legendMark: Entity | null = null;
+    private zoneLabel: Entity | null = null;
 
     private holding: Entity | null = null;
     private dragging = false;
@@ -118,7 +126,7 @@ export class CardDeck extends Script {
         if (this.dragging) {
             const placed = this.rune
                 ? this.tryDrop(card) || offerToRuneArea(card)
-                : this.tryDrop(card) || offerToHand(card) || offerToTrash(card);
+                : this.tryDrop(card) || offerToChampion(card) || offerToHand(card) || offerToTrash(card);
             if (!placed) {
                 const position = card.getLocalPosition();
                 card.setLocalPosition(position.x, 0, position.z);
@@ -138,6 +146,23 @@ export class CardDeck extends Script {
     };
 
     initialize() {
+        const board = this.entity.parent;
+        if (board instanceof Entity) {
+            const label = this.rune ? 'Rune Deck' : 'Deck';
+            this.zoneLabel = addZoneLabel(board, this.app.graphicsDevice, this.originX, this.originZ, label, `${label}-label`);
+        }
+        if (this.anchorLegend && board instanceof Entity) {
+            this.legendMark = addEmptySlot(
+                board,
+                this.app.graphicsDevice,
+                this.originX,
+                this.legendZ,
+                this.width,
+                this.depth,
+                'Chosen Legend',
+                'chosen-legend-empty'
+            );
+        }
         CardDeck.piles.push(this);
         CardDeck.sync();
         window.addEventListener('pointerdown', this.onPointerDown, true);
@@ -160,7 +185,15 @@ export class CardDeck extends Script {
             window.removeEventListener('pointerdown', this.onPointerDown, true);
             window.removeEventListener('pointermove', this.onPointerMove);
             window.removeEventListener('pointerup', this.onPointerUp);
+            this.legendMark?.destroy();
+            this.zoneLabel?.destroy();
         });
+    }
+
+    syncLabel() {
+        if (this.zoneLabel) {
+            this.zoneLabel.enabled = this.cards.length === 0;
+        }
     }
 
     /** Dropped on this pile's zone: tuck the matching card under the pile, face down. */
@@ -186,6 +219,7 @@ export class CardDeck extends Script {
         if (playable instanceof PlayableCard) {
             playable.joinDeck();
         }
+        this.syncLabel();
         return true;
     }
 
@@ -201,12 +235,47 @@ export class CardDeck extends Script {
         const runePile = CardDeck.piles.find((pile) => pile.rune);
         mainPile?.fill(resolved.copies, resolved.back);
         runePile?.fill(resolved.runes, resolved.runeBack);
+        if (resolved.legend) {
+            mainPile?.placeLegend(resolved.legend.art, resolved.legend.back);
+        }
+        const championZone = this.zoneScript('chosen-champion', 'cardChampion');
+        if (resolved.champion && championZone instanceof CardChampion) {
+            championZone.place(resolved.champion.art, resolved.champion.back);
+        }
+    }
+
+    placeLegend(art: string, back: string) {
+        const board = this.entity.parent;
+        if (!this.anchorLegend || !(board instanceof Entity)) {
+            return;
+        }
+        const card = createPlayableCard(
+            board,
+            this.app.graphicsDevice,
+            this.originX,
+            this.legendZ,
+            this.width,
+            this.depth,
+            art,
+            back,
+            false,
+            false,
+            true
+        );
+        const playable = card.script?.get('playableCard');
+        if (playable instanceof PlayableCard) {
+            playable.setFaceUp(true);
+        }
+        if (this.legendMark) {
+            this.legendMark.enabled = false;
+        }
     }
 
     fill(arts: string[], back: string) {
         const board = this.entity.parent;
         if (!(board instanceof Entity) || arts.length === 0 || !back) {
             this.cards = [];
+            this.syncLabel();
             return;
         }
         this.cards = shuffle(arts).map((art, index) => {
@@ -225,6 +294,7 @@ export class CardDeck extends Script {
             card.setLocalPosition(this.originX, index * stackStep, this.originZ);
             return card;
         });
+        this.syncLabel();
     }
 
     private static sync() {
@@ -244,19 +314,30 @@ export class CardDeck extends Script {
         const hand = this.zoneScript('hand', 'cardHand');
         const runes = this.zoneScript('rune-area', 'cardHand');
         const trash = this.zoneScript('trash', 'cardTrash');
+        const champion = this.zoneScript('chosen-champion', 'cardChampion');
         if (hand instanceof CardHand) {
             hand.cards.length = 0;
+            hand.syncLabel();
         }
         if (runes instanceof CardHand) {
             runes.cards.length = 0;
+            runes.syncLabel();
         }
         if (trash instanceof CardTrash) {
             trash.cards.length = 0;
+            trash.syncLabel();
+        }
+        if (champion instanceof CardChampion) {
+            champion.clear();
+        }
+        if (this.legendMark) {
+            this.legendMark.enabled = true;
         }
         for (const pile of CardDeck.piles) {
             pile.holding = null;
             pile.dragging = false;
             pile.cards.length = 0;
+            pile.syncLabel();
         }
         const board = this.entity.parent;
         if (!board) {
@@ -316,6 +397,7 @@ export class CardDeck extends Script {
         }
         this.cards.splice(index, 1);
         this.restack();
+        this.syncLabel();
     }
 
     private take(card: Entity, faceUp: boolean) {
@@ -330,6 +412,7 @@ export class CardDeck extends Script {
                 playable.setFaceUp(true);
             }
         }
+        this.syncLabel();
     }
 
     private rayTable(event: PointerEvent) {
@@ -356,7 +439,15 @@ export class CardDeck extends Script {
     }
 }
 
-export const addDeck = (parent: Entity, x: number, z: number, width: number, depth: number, rune = false) => {
+export const addDeck = (
+    parent: Entity,
+    x: number,
+    z: number,
+    width: number,
+    depth: number,
+    rune = false,
+    legendZ?: number
+) => {
     const deckEntity = new Entity(rune ? 'rune-deck' : 'deck');
     parent.addChild(deckEntity);
     const scripts = deckEntity.addComponent('script');
@@ -369,7 +460,9 @@ export const addDeck = (parent: Entity, x: number, z: number, width: number, dep
             originZ: z,
             width,
             depth,
-            rune
+            rune,
+            anchorLegend: legendZ !== undefined,
+            legendZ: legendZ ?? 0
         }
     });
     if (!deck) {

@@ -2,7 +2,8 @@ import { Entity, Script, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
 import { cancelCardMotion, moveCardTo } from './cardMotion.ts';
-import { insideRoundedCard, offerToDeck, offerToHand, PlayableCard, setTrash } from './playableCard.ts';
+import { addZoneLabel } from './emptySlot.ts';
+import { insideRoundedCard, offerToChampion, offerToDeck, offerToHand, PlayableCard, setTrash } from './playableCard.ts';
 
 const clickSlop = 6;
 const stackStep = 0.018;
@@ -40,6 +41,7 @@ export class CardTrash extends Script {
     width = 0.7;
     depth = 1.02;
 
+    private zoneLabel: Entity | null = null;
     private holding: Entity | null = null;
     private dragging = false;
     private pointerStart = { x: 0, y: 0 };
@@ -94,7 +96,7 @@ export class CardTrash extends Script {
         if (!this.dragging) {
             return;
         }
-        if (!offerToDeck(card) && !offerToHand(card) && !this.tryDrop(card)) {
+        if (!offerToDeck(card) && !offerToChampion(card) && !offerToHand(card) && !this.tryDrop(card)) {
             const position = card.getLocalPosition();
             card.setLocalPosition(position.x, 0, position.z);
         }
@@ -107,6 +109,10 @@ export class CardTrash extends Script {
     };
 
     initialize() {
+        const board = this.entity.parent;
+        if (board instanceof Entity) {
+            this.zoneLabel = addZoneLabel(board, this.app.graphicsDevice, this.originX, this.originZ, 'Trash', 'trash-label');
+        }
         setTrash({
             drop: (card) => this.tryDrop(card),
             send: (card) => {
@@ -127,7 +133,14 @@ export class CardTrash extends Script {
             window.removeEventListener('pointermove', this.onPointerMove);
             window.removeEventListener('pointerup', this.onPointerUp);
             window.removeEventListener('contextmenu', this.onContextMenu);
+            this.zoneLabel?.destroy();
         });
+    }
+
+    syncLabel() {
+        if (this.zoneLabel) {
+            this.zoneLabel.enabled = this.cards.length === 0;
+        }
     }
 
     private tryDrop(card: Entity) {
@@ -175,6 +188,7 @@ export class CardTrash extends Script {
         this.cards.forEach((card, index) => {
             moveCardTo(card, this.originX, index * stackStep, this.originZ);
         });
+        this.syncLabel();
     }
 
     private overZone(x: number, z: number) {

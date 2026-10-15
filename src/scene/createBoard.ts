@@ -3,8 +3,10 @@ import type { AppBase } from 'playcanvas';
 
 import { loadDeckLists } from './cardCatalog.ts';
 import { bindCardMotion } from './cardMotion.ts';
+import { addChampion } from './champion.ts';
 import { addDeck } from './deck.ts';
 import { mountDeckPicker } from './deckPicker.ts';
+import { addZoneLabel } from './emptySlot.ts';
 import { addHand } from './hand.ts';
 import { addScoreTrack, scoreColumnMidOffset, scoreRadius } from './scoreTrack.ts';
 import { addTrash } from './trash.ts';
@@ -14,7 +16,6 @@ const boardColor = '#1c355c';
 const zoneFill = '#1a3258';
 const zoneLine = '#5d7598';
 const zoneCorner = '#93abc8';
-const blankCard = '#e4edf6';
 
 const createMaterial = (hex: string) => {
     const material = new StandardMaterial();
@@ -99,10 +100,6 @@ const addZone = (
 const cardWidth = 0.7;
 const cardDepth = 1.02;
 
-const addCard = (parent: Entity, name: string, x: number, z: number, hex: string) => {
-    return addMesh(parent, name, 'box', [cardWidth, 0.025, cardDepth], [x, 0.062, z], hex);
-};
-
 const cardFit = 0.1;
 
 const addCardZone = (parent: Entity, name: string, x: number, z: number) => {
@@ -163,6 +160,9 @@ export const createBoard = (app: AppBase) => {
     const baseX = (baseLeft + baseRight) / 2;
     addZone(board, 'rune-area', leftZoneX, identityZ, zoneWidth, playerZoneDepth);
     addZone(board, 'base', baseX, identityZ, baseWidth, playerZoneDepth);
+    addZoneLabel(board, app.graphicsDevice, leftFieldX, battlefieldZ, 'Battlefield', 'battlefield-left-label');
+    addZoneLabel(board, app.graphicsDevice, rightFieldX, battlefieldZ, 'Battlefield', 'battlefield-right-label');
+    addZoneLabel(board, app.graphicsDevice, baseX, identityZ, 'Base', 'base-label');
 
     const plateX = -5.15;
     addScoreTrack(board, app.graphicsDevice, {
@@ -170,11 +170,10 @@ export const createBoard = (app: AppBase) => {
         near: battlefieldNear - 0.08
     });
 
-    addCard(board, 'chosen-legend', legendX, identityZ, blankCard);
-    addCard(board, 'chosen-champion', championX, identityZ, blankCard);
+    addChampion(board, championX, identityZ, cardWidth, cardDepth);
 
     addCardZone(board, 'deck', legendX, pileZ);
-    const deck = addDeck(board, legendX, pileZ, cardWidth, cardDepth);
+    const deck = addDeck(board, legendX, pileZ, cardWidth, cardDepth, false, identityZ);
     addCardZone(board, 'trash', championX, pileZ);
     addTrash(board, championX, pileZ, cardWidth, cardDepth);
     const runeDeckX = -3.45;
