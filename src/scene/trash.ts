@@ -3,7 +3,7 @@ import type { AppBase } from 'playcanvas';
 
 import { cancelCardMotion, moveCardTo } from './cardMotion.ts';
 import { addZoneLabel } from './emptySlot.ts';
-import { insideRoundedCard, offerToChampion, offerToDeck, offerToHand, PlayableCard, setTrash } from './playableCard.ts';
+import { insideRoundedCard, offerToBase, offerToChampion, offerToDeck, offerToHand, PlayableCard, setTrash } from './playableCard.ts';
 
 const clickSlop = 6;
 const stackStep = 0.018;
@@ -96,7 +96,7 @@ export class CardTrash extends Script {
         if (!this.dragging) {
             return;
         }
-        if (!offerToDeck(card) && !offerToChampion(card) && !offerToHand(card) && !this.tryDrop(card)) {
+        if (!offerToDeck(card) && !offerToChampion(card) && !offerToBase(card) && !offerToHand(card) && !this.tryDrop(card)) {
             const position = card.getLocalPosition();
             card.setLocalPosition(position.x, 0, position.z);
         }

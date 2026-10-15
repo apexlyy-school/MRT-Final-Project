@@ -12,6 +12,7 @@ import {
     drawToHand,
     drawToRuneArea,
     insideRoundedCard,
+    offerToBase,
     offerToChampion,
     offerToHand,
     offerToRuneArea,
@@ -126,7 +127,7 @@ export class CardDeck extends Script {
         if (this.dragging) {
             const placed = this.rune
                 ? this.tryDrop(card) || offerToRuneArea(card)
-                : this.tryDrop(card) || offerToChampion(card) || offerToHand(card) || offerToTrash(card);
+                : this.tryDrop(card) || offerToChampion(card) || offerToBase(card) || offerToHand(card) || offerToTrash(card);
             if (!placed) {
                 const position = card.getLocalPosition();
                 card.setLocalPosition(position.x, 0, position.z);
@@ -313,6 +314,7 @@ export class CardDeck extends Script {
     private clearPlay() {
         const hand = this.zoneScript('hand', 'cardHand');
         const runes = this.zoneScript('rune-area', 'cardHand');
+        const base = this.zoneScript('base', 'cardHand');
         const trash = this.zoneScript('trash', 'cardTrash');
         const champion = this.zoneScript('chosen-champion', 'cardChampion');
         if (hand instanceof CardHand) {
@@ -322,6 +324,10 @@ export class CardDeck extends Script {
         if (runes instanceof CardHand) {
             runes.cards.length = 0;
             runes.syncLabel();
+        }
+        if (base instanceof CardHand) {
+            base.cards.length = 0;
+            base.syncLabel();
         }
         if (trash instanceof CardTrash) {
             trash.cards.length = 0;

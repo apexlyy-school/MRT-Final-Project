@@ -66,6 +66,9 @@ let runeDrop: ((card: Entity) => boolean) | null = null;
 let runeDraw: ((card: Entity) => void) | null = null;
 let runeRelease: ((card: Entity) => void) | null = null;
 let runeOwns: ((card: Entity, x: number, z: number) => boolean) | null = null;
+let baseDrop: ((card: Entity) => boolean) | null = null;
+let baseRelease: ((card: Entity) => void) | null = null;
+let baseOwns: ((card: Entity, x: number, z: number) => boolean) | null = null;
 let championDrop: ((card: Entity) => boolean) | null = null;
 let championRelease: ((card: Entity) => void) | null = null;
 let trashDrop: ((card: Entity) => boolean) | null = null;
@@ -128,6 +131,19 @@ export const drawToRuneArea = (card: Entity) => {
     runeDraw?.(card);
 };
 
+/** The base registers the same row behaviour as the rune area, with cards seated tapped. */
+export const setBase = (handlers: {
+    drop: (card: Entity) => boolean;
+    release: (card: Entity) => void;
+    owns: (card: Entity, x: number, z: number) => boolean;
+} | null) => {
+    baseDrop = handlers?.drop ?? null;
+    baseRelease = handlers?.release ?? null;
+    baseOwns = handlers?.owns ?? null;
+};
+
+export const offerToBase = (card: Entity) => baseDrop?.(card) ?? false;
+
 export const buryInMatchingDeck = (card: Entity) => deckBury?.(card) ?? false;
 
 /** The chosen-champion slot registers drop and removal. */
@@ -182,6 +198,7 @@ export class PlayableCard extends Script {
     pinned = false;
     champion = false;
     inChampion = false;
+    inBase = false;
 
     private faceMaterial: StandardMaterial | null = null;
     private art: Texture | null = null;
@@ -214,6 +231,9 @@ export class PlayableCard extends Script {
             return;
         }
         if (this.inRuneArea && runeOwns && !runeOwns(this.entity, worldX, worldZ)) {
+            return;
+        }
+        if (this.inBase && baseOwns && !baseOwns(this.entity, worldX, worldZ)) {
             return;
         }
         event.stopPropagation();
@@ -254,6 +274,10 @@ export class PlayableCard extends Script {
                 this.inChampion = false;
                 championRelease?.(this.entity);
             }
+            if (this.inBase) {
+                this.inBase = false;
+                baseRelease?.(this.entity);
+            }
         }
         if (this.pinned || !this.dragging || !this.rayTable(event)) {
             return;
@@ -280,7 +304,7 @@ export class PlayableCard extends Script {
             }
             const placed = this.rune
                 ? offerToDeck(this.entity) || offerToRuneArea(this.entity)
-                : offerToChampion(this.entity) || (deckDrop?.(this.entity) ?? false) || (handDrop?.(this.entity) ?? false) || (trashDrop?.(this.entity) ?? false);
+                : offerToChampion(this.entity) || offerToBase(this.entity) || (deckDrop?.(this.entity) ?? false) || (handDrop?.(this.entity) ?? false) || (trashDrop?.(this.entity) ?? false);
             if (placed) {
                 return;
             }
@@ -353,6 +377,9 @@ export class PlayableCard extends Script {
         if (this.inHand && handOwns && !handOwns(this.entity, worldX, worldZ)) {
             return;
         }
+        if (this.inBase && baseOwns && !baseOwns(this.entity, worldX, worldZ)) {
+            return;
+        }
         event.preventDefault();
         event.stopImmediatePropagation();
         this.suppressCamera = true;
@@ -378,6 +405,10 @@ export class PlayableCard extends Script {
             this.inChampion = false;
             championRelease?.(this.entity);
         }
+        if (this.inBase) {
+            this.inBase = false;
+            baseRelease?.(this.entity);
+        }
         this.inDeck = true;
         this.tapped = false;
         this.yaw = 0;
@@ -399,6 +430,10 @@ export class PlayableCard extends Script {
         if (this.inChampion) {
             this.inChampion = false;
             championRelease?.(this.entity);
+        }
+        if (this.inBase) {
+            this.inBase = false;
+            baseRelease?.(this.entity);
         }
         this.inDeck = false;
         this.inHand = true;
@@ -427,6 +462,10 @@ export class PlayableCard extends Script {
             this.inChampion = false;
             championRelease?.(this.entity);
         }
+        if (this.inBase) {
+            this.inBase = false;
+            baseRelease?.(this.entity);
+        }
         this.inRuneArea = true;
         this.tapped = false;
         this.yaw = 0;
@@ -452,6 +491,10 @@ export class PlayableCard extends Script {
         if (this.inChampion) {
             this.inChampion = false;
             championRelease?.(this.entity);
+        }
+        if (this.inBase) {
+            this.inBase = false;
+            baseRelease?.(this.entity);
         }
         this.inTrash = true;
         this.tapped = false;
@@ -479,11 +522,45 @@ export class PlayableCard extends Script {
             this.inRuneArea = false;
             runeRelease?.(this.entity);
         }
+        if (this.inBase) {
+            this.inBase = false;
+            baseRelease?.(this.entity);
+        }
         this.inChampion = true;
         this.tapped = false;
         this.yaw = 0;
         this.yawTarget = 0;
         this.entity.setLocalEulerAngles(0, 0, 0);
+        this.setFaceUp(true);
+    }
+
+    /** Face up in the base, already turned sideways. */
+    joinBase() {
+        if (this.inDeck) {
+            this.inDeck = false;
+            deckRelease?.(this.entity);
+        }
+        if (this.inHand) {
+            this.inHand = false;
+            handRelease?.(this.entity);
+        }
+        if (this.inTrash) {
+            this.inTrash = false;
+            trashRelease?.(this.entity);
+        }
+        if (this.inRuneArea) {
+            this.inRuneArea = false;
+            runeRelease?.(this.entity);
+        }
+        if (this.inChampion) {
+            this.inChampion = false;
+            championRelease?.(this.entity);
+        }
+        this.inBase = true;
+        this.tapped = true;
+        this.yaw = -90;
+        this.yawTarget = -90;
+        this.entity.setLocalEulerAngles(0, -90, 0);
         this.setFaceUp(true);
     }
 

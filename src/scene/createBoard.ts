@@ -162,7 +162,6 @@ export const createBoard = (app: AppBase) => {
     addZone(board, 'base', baseX, identityZ, baseWidth, playerZoneDepth);
     addZoneLabel(board, app.graphicsDevice, leftFieldX, battlefieldZ, 'Battlefield', 'battlefield-left-label');
     addZoneLabel(board, app.graphicsDevice, rightFieldX, battlefieldZ, 'Battlefield', 'battlefield-right-label');
-    addZoneLabel(board, app.graphicsDevice, baseX, identityZ, 'Base', 'base-label');
 
     const plateX = -5.15;
     addScoreTrack(board, app.graphicsDevice, {
@@ -190,11 +189,23 @@ export const createBoard = (app: AppBase) => {
     const runeAreaLeft = leftZoneX - zoneWidth / 2;
     const runeAreaRight = leftZoneX + zoneWidth / 2;
     addHand(board, runeAreaLeft, runeAreaRight, identityZ, playerZoneDepth, cardWidth, true, cardDepth);
+    addHand(board, baseLeft, baseRight, identityZ, playerZoneDepth, cardWidth, false, cardDepth, true);
 
     const lists = loadDeckLists();
     const initial = lists.find((list) => list.name === 'Sample') ?? lists[0];
     if (initial) {
-        mountDeckPicker(deck, lists, initial);
+        const pileHalfDepth = (cardDepth + cardFit) / 2;
+        const pileHalfWidth = (cardWidth + cardFit) / 2;
+        const pickerDepth = 0.32;
+        const pickerGap = 0.1;
+        const pickerLeft = legendX - pileHalfWidth;
+        const pickerRight = championX + pileHalfWidth;
+        mountDeckPicker(app, board, deck, lists, initial, {
+            x: (pickerLeft + pickerRight) / 2,
+            z: pileZ + pileHalfDepth + pickerGap + pickerDepth / 2,
+            width: pickerRight - pickerLeft,
+            depth: pickerDepth
+        });
         deck.load(initial);
     }
 

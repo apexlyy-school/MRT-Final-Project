@@ -2,7 +2,7 @@ import { Entity, Script } from 'playcanvas';
 
 import { moveCardTo } from './cardMotion.ts';
 import { addZoneLabel } from './emptySlot.ts';
-import { PlayableCard, setHand, setRuneArea } from './playableCard.ts';
+import { PlayableCard, setBase, setHand, setRuneArea } from './playableCard.ts';
 
 const cardGap = 0.08;
 const stackStep = 0.006;
@@ -24,13 +24,14 @@ export class CardHand extends Script {
     cardWidth = 0.7;
     cardDepth = 1.02;
     rune = false;
+    base = false;
 
     private zoneLabel: Entity | null = null;
 
     initialize() {
         const board = this.entity.parent;
         if (board instanceof Entity) {
-            const label = this.rune ? 'Rune Area' : 'Hand';
+            const label = this.base ? 'Base' : this.rune ? 'Rune Area' : 'Hand';
             this.zoneLabel = addZoneLabel(board, this.app.graphicsDevice, (this.left + this.right) / 2, this.centerZ, label, `${label}-label`);
         }
         const handlers = {
@@ -39,13 +40,17 @@ export class CardHand extends Script {
             release: (card: Entity) => this.release(card),
             owns: (card: Entity, x: number, z: number) => this.owns(card, x, z)
         };
-        if (this.rune) {
+        if (this.base) {
+            setBase(handlers);
+        } else if (this.rune) {
             setRuneArea(handlers);
         } else {
             setHand(handlers);
         }
         this.on('destroy', () => {
-            if (this.rune) {
+            if (this.base) {
+                setBase(null);
+            } else if (this.rune) {
                 setRuneArea(null);
             } else {
                 setHand(null);
@@ -86,7 +91,9 @@ export class CardHand extends Script {
 
     private seat(card: Entity) {
         const playable = playableOn(card);
-        if (this.rune) {
+        if (this.base) {
+            playable?.joinBase();
+        } else if (this.rune) {
             playable?.joinRuneArea();
         } else {
             playable?.joinHand();
@@ -129,11 +136,12 @@ export class CardHand extends Script {
         if (count <= 1) {
             return 0;
         }
-        // A tapped rune is as wide as the card is tall, so the row stops short of the frame.
-        const span = this.rune ? this.cardDepth : this.cardWidth;
+        // Base cards sit sideways, and a tapped rune is as wide as the card is tall.
+        const span = this.base || this.rune ? this.cardDepth : this.cardWidth;
+        const stride = this.base ? this.cardDepth : this.cardWidth;
         const inner = this.right - this.left - borderInset * 2;
         const room = (inner - span) / (count - 1);
-        return Math.min(this.cardWidth + cardGap, Math.max(room, 0));
+        return Math.min(stride + cardGap, Math.max(room, 0));
     }
 
     private slotFor(x: number, count: number) {
@@ -171,9 +179,10 @@ export const addHand = (
     zoneDepth: number,
     cardWidth: number,
     rune = false,
-    cardDepth = 1.02
+    cardDepth = 1.02,
+    base = false
 ) => {
-    const hand = new Entity(rune ? 'rune-area' : 'hand');
+    const hand = new Entity(base ? 'base' : rune ? 'rune-area' : 'hand');
     parent.addChild(hand);
     const scripts = hand.addComponent('script');
     if (!scripts) {
@@ -187,7 +196,8 @@ export const addHand = (
             zoneDepth,
             cardWidth,
             cardDepth,
-            rune
+            rune,
+            base
         }
     });
 };
