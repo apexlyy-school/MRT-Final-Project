@@ -1,13 +1,13 @@
 import { Entity, StandardMaterial } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
+import { addScoreTrack, scoreColumnMidOffset, scoreRadius } from './scoreTrack.ts';
+
 // Colors sampled from the Rift Atlas match screen: navy field, slate zone lines, teal accent.
 const boardColor = '#1c355c';
 const zoneFill = '#1a3258';
 const zoneLine = '#5d7598';
 const zoneCorner = '#93abc8';
-const runeColor = '#1a3d6b';
-const runeRing = '#4d6d96';
 const blankCard = '#e4edf6';
 
 const createMaterial = (hex: string) => {
@@ -90,18 +90,6 @@ const addZone = (
     }
 };
 
-const addRuneTrack = (parent: Entity) => {
-    const count = 9;
-    const nearZ = 1.35;
-    const farZ = -1.55;
-    for (let i = 0; i < count; i++) {
-        const z = nearZ + ((farZ - nearZ) * i) / (count - 1);
-        const x = -5.05;
-        addMesh(parent, `rune-ring-${i}`, 'cylinder', [0.42, 0.012, 0.42], [x, 0.046, z], runeRing);
-        addMesh(parent, `rune-${i}`, 'cylinder', [0.3, 0.02, 0.3], [x, 0.055, z], runeColor);
-    }
-};
-
 const cardWidth = 0.7;
 const cardDepth = 1.02;
 
@@ -168,7 +156,11 @@ export const createBoard = (app: AppBase) => {
     addZone(board, 'rune-area', leftZoneX, identityZ, zoneWidth, playerZoneDepth);
     addZone(board, 'base', baseX, identityZ, baseWidth, playerZoneDepth);
 
-    addRuneTrack(board);
+    const plateX = -5.15;
+    addScoreTrack(board, app.graphicsDevice, {
+        left: plateX - scoreColumnMidOffset,
+        near: battlefieldNear - 0.08
+    });
 
     addCard(board, 'chosen-legend', legendX, identityZ, blankCard);
     addCard(board, 'chosen-champion', championX, identityZ, blankCard);
@@ -177,6 +169,9 @@ export const createBoard = (app: AppBase) => {
     addCardZone(board, 'trash', championX, pileZ);
     addCardZone(board, 'rune-deck', -3.45, pileZ);
 
-    addMesh(board, 'player-plate', 'box', [1.5, 0.02, 0.55], [-5.15, 0.05, 2.85], '#10243f');
+    // Sit the nameplate just below score 0, clear of the zigzag track.
+    const plateDepth = 0.55;
+    const plateZ = battlefieldNear + 1.168 + scoreRadius + 0.08 + plateDepth / 2;
+    addMesh(board, 'player-plate', 'box', [1.5, 0.02, plateDepth], [plateX, 0.05, plateZ], '#10243f');
     addMesh(board, 'opponent-plate', 'box', [1.7, 0.02, 0.55], [4.85, 0.05, -3.05], '#10243f');
 };
