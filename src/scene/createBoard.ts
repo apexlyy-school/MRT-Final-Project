@@ -1,9 +1,11 @@
 import { Entity, StandardMaterial } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
+import { bindCardMotion } from './cardMotion.ts';
 import { addDeck } from './deck.ts';
 import { addHand } from './hand.ts';
 import { addScoreTrack, scoreColumnMidOffset, scoreRadius } from './scoreTrack.ts';
+import { addTrash } from './trash.ts';
 
 // Colors sampled from the Rift Atlas match screen: navy field, slate zone lines, teal accent.
 const boardColor = '#1c355c';
@@ -106,6 +108,7 @@ const addCardZone = (parent: Entity, name: string, x: number, z: number) => {
 };
 
 export const createBoard = (app: AppBase) => {
+    bindCardMotion(app);
     const board = new Entity('board');
     app.root.addChild(board);
 
@@ -171,6 +174,7 @@ export const createBoard = (app: AppBase) => {
     addCardZone(board, 'deck', legendX, pileZ);
     addDeck(board, app.graphicsDevice, legendX, pileZ, cardWidth, cardDepth);
     addCardZone(board, 'trash', championX, pileZ);
+    addTrash(board, championX, pileZ, cardWidth, cardDepth);
     const runeDeckX = -3.45;
     addCardZone(board, 'rune-deck', runeDeckX, pileZ);
 

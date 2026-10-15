@@ -1,13 +1,16 @@
 import { Entity, Script, Vec3 } from 'playcanvas';
 import type { AppBase, GraphicsDevice } from 'playcanvas';
 
+import { cancelCardMotion, moveCardTo } from './cardMotion.ts';
 import {
     createPlayableCard,
     drawToHand,
     insideRoundedCard,
     offerToHand,
+    offerToTrash,
     PlayableCard,
-    setDeckDrop
+    setDeckDrop,
+    setDeckPile
 } from './playableCard.ts';
 
 const artFiles = import.meta.glob('../../card assets/*.{webp,png,jpg,jpeg}', {
@@ -110,6 +113,7 @@ export class CardDeck extends Script {
         if (!this.dragging || !this.rayTable(event)) {
             return;
         }
+        cancelCardMotion(card);
         card.setLocalPosition(hitX - this.grabX, liftY, hitZ - this.grabZ);
     };
 
@@ -122,7 +126,7 @@ export class CardDeck extends Script {
         this.holding = null;
         setCameraEnabled(this.app, true);
         if (this.dragging) {
-            if (!this.returnToBottom(card) && !offerToHand(card)) {
+            if (!this.returnToBottom(card) && !offerToHand(card) && !offerToTrash(card)) {
                 const position = card.getLocalPosition();
                 card.setLocalPosition(position.x, 0, position.z);
                 const playable = card.script?.get('playableCard');
@@ -138,11 +142,16 @@ export class CardDeck extends Script {
 
     initialize() {
         setDeckDrop((card) => this.returnToBottom(card));
+        setDeckPile({
+            release: (card) => this.release(card),
+            isTop: (card) => this.cards.length > 0 && this.cards[this.cards.length - 1] === card
+        });
         window.addEventListener('pointerdown', this.onPointerDown, true);
         window.addEventListener('pointermove', this.onPointerMove);
         window.addEventListener('pointerup', this.onPointerUp);
         this.on('destroy', () => {
             setDeckDrop(null);
+            setDeckPile(null);
             if (this.holding) {
                 setCameraEnabled(this.app, true);
             }
@@ -170,13 +179,24 @@ export class CardDeck extends Script {
         }
         this.cards.unshift(card);
         this.cards.forEach((stacked, stackedIndex) => {
-            stacked.setLocalPosition(this.originX, stackedIndex * stackStep, this.originZ);
+            moveCardTo(stacked, this.originX, stackedIndex * stackStep, this.originZ);
         });
         const playable = card.script?.get('playableCard');
         if (playable instanceof PlayableCard) {
             playable.joinDeck();
         }
         return true;
+    }
+
+    private release(card: Entity) {
+        const index = this.cards.indexOf(card);
+        if (index < 0) {
+            return;
+        }
+        this.cards.splice(index, 1);
+        this.cards.forEach((stacked, stackedIndex) => {
+            moveCardTo(stacked, this.originX, stackedIndex * stackStep, this.originZ);
+        });
     }
 
     private take(card: Entity, faceUp: boolean) {

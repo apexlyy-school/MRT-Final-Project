@@ -15,6 +15,8 @@ import {
 } from 'playcanvas';
 import type { AppBase, GraphicsDevice } from 'playcanvas';
 
+import { cancelCardMotion } from './cardMotion.ts';
+
 const clickSlop = 6;
 const cornerPortion = 0.08;
 const cornerSteps = 8;
@@ -53,14 +55,28 @@ const loadCardTexture = (device: GraphicsDevice, url: string) => new Promise<Tex
 });
 
 let deckDrop: ((card: Entity) => boolean) | null = null;
+let deckRelease: ((card: Entity) => void) | null = null;
+let deckIsTop: ((card: Entity) => boolean) | null = null;
 let handDrop: ((card: Entity) => boolean) | null = null;
 let handDraw: ((card: Entity) => void) | null = null;
 let handRelease: ((card: Entity) => void) | null = null;
 let handOwns: ((card: Entity, x: number, z: number) => boolean) | null = null;
+let trashDrop: ((card: Entity) => boolean) | null = null;
+let trashSend: ((card: Entity) => void) | null = null;
+let trashRelease: ((card: Entity) => void) | null = null;
 
 /** The deck registers this so a dragged card can be returned to the pile. */
 export const setDeckDrop = (handler: ((card: Entity) => boolean) | null) => {
     deckDrop = handler;
+};
+
+/** The deck registers removal and which card is currently on top. */
+export const setDeckPile = (handlers: {
+    release: (card: Entity) => void;
+    isTop: (card: Entity) => boolean;
+} | null) => {
+    deckRelease = handlers?.release ?? null;
+    deckIsTop = handlers?.isTop ?? null;
 };
 
 /** The hand registers draw, drop, and overlap picking. */
@@ -76,10 +92,29 @@ export const setHand = (handlers: {
     handOwns = handlers?.owns ?? null;
 };
 
+export const offerToDeck = (card: Entity) => deckDrop?.(card) ?? false;
+
 export const offerToHand = (card: Entity) => handDrop?.(card) ?? false;
 
 export const drawToHand = (card: Entity) => {
     handDraw?.(card);
+};
+
+/** The trash registers drop, right-click discard, and removal when a card is dragged out. */
+export const setTrash = (handlers: {
+    drop: (card: Entity) => boolean;
+    send: (card: Entity) => void;
+    release: (card: Entity) => void;
+} | null) => {
+    trashDrop = handlers?.drop ?? null;
+    trashSend = handlers?.send ?? null;
+    trashRelease = handlers?.release ?? null;
+};
+
+export const offerToTrash = (card: Entity) => trashDrop?.(card) ?? false;
+
+export const sendToTrash = (card: Entity) => {
+    trashSend?.(card);
 };
 
 const setCameraEnabled = (app: AppBase, enabled: boolean) => {
@@ -100,6 +135,7 @@ export class PlayableCard extends Script {
     depth = 1.02;
     inDeck = false;
     inHand = false;
+    inTrash = false;
 
     private faceMaterial: StandardMaterial | null = null;
     private art: Texture | null = null;
@@ -113,9 +149,14 @@ export class PlayableCard extends Script {
     private pointerStart = { x: 0, y: 0 };
     private grabX = 0;
     private grabZ = 0;
+    private suppressCamera = false;
 
     private readonly onPointerDown = (event: PointerEvent) => {
-        if (this.inDeck || event.button !== 0 || this.holding || !this.rayTable(event)) {
+        if (event.button === 2) {
+            this.discard(event);
+            return;
+        }
+        if (this.inDeck || this.inTrash || event.button !== 0 || this.holding || !this.rayTable(event)) {
             return;
         }
         const worldX = hitPoint.x;
@@ -149,14 +190,24 @@ export class PlayableCard extends Script {
                 this.inHand = false;
                 handRelease?.(this.entity);
             }
+            if (this.inTrash) {
+                this.inTrash = false;
+                trashRelease?.(this.entity);
+            }
         }
         if (!this.dragging || !this.rayTable(event)) {
             return;
         }
+        cancelCardMotion(this.entity);
         this.entity.setLocalPosition(hitPoint.x - this.grabX, liftY, hitPoint.z - this.grabZ);
     };
 
     private readonly onPointerUp = (event: PointerEvent) => {
+        if (event.button === 2 && this.suppressCamera) {
+            this.suppressCamera = false;
+            setCameraEnabled(this.app, true);
+            return;
+        }
         if (!this.holding || event.button !== 0) {
             return;
         }
@@ -164,7 +215,7 @@ export class PlayableCard extends Script {
         this.holding = false;
         setCameraEnabled(this.app, true);
         if (this.dragging) {
-            if (deckDrop?.(this.entity) || handDrop?.(this.entity)) {
+            if (deckDrop?.(this.entity) || handDrop?.(this.entity) || trashDrop?.(this.entity)) {
                 return;
             }
             const position = this.entity.getLocalPosition();
@@ -183,7 +234,7 @@ export class PlayableCard extends Script {
         window.addEventListener('pointermove', this.onPointerMove);
         window.addEventListener('pointerup', this.onPointerUp);
         this.on('destroy', () => {
-            if (this.holding) {
+            if (this.holding || this.suppressCamera) {
                 setCameraEnabled(this.app, true);
             }
             window.removeEventListener('pointerdown', this.onPointerDown, true);
@@ -203,11 +254,41 @@ export class PlayableCard extends Script {
         this.entity.setLocalEulerAngles(0, this.yaw, 0);
     }
 
+    private discard(event: PointerEvent) {
+        if (this.holding || this.inTrash || !this.rayTable(event)) {
+            return;
+        }
+        const worldX = hitPoint.x;
+        const worldZ = hitPoint.z;
+        if (!this.contains(worldX, worldZ)) {
+            return;
+        }
+        const fromDeck = this.inDeck && (deckIsTop?.(this.entity) ?? false);
+        if (this.inDeck && !fromDeck) {
+            return;
+        }
+        if (!fromDeck && !this.inHand && !this.faceUp) {
+            return;
+        }
+        if (this.inHand && handOwns && !handOwns(this.entity, worldX, worldZ)) {
+            return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        this.suppressCamera = true;
+        setCameraEnabled(this.app, false);
+        sendToTrash(this.entity);
+    }
+
     /** Square the card, turn it face down, and stop it taking its own clicks. */
     joinDeck() {
         if (this.inHand) {
             this.inHand = false;
             handRelease?.(this.entity);
+        }
+        if (this.inTrash) {
+            this.inTrash = false;
+            trashRelease?.(this.entity);
         }
         this.inDeck = true;
         this.tapped = false;
@@ -219,8 +300,30 @@ export class PlayableCard extends Script {
 
     /** Face up, square, and kept in the hand row so a click does not turn it. */
     joinHand() {
+        if (this.inTrash) {
+            this.inTrash = false;
+            trashRelease?.(this.entity);
+        }
         this.inDeck = false;
         this.inHand = true;
+        this.tapped = false;
+        this.yaw = 0;
+        this.yawTarget = 0;
+        this.entity.setLocalEulerAngles(0, 0, 0);
+        this.setFaceUp(true);
+    }
+
+    /** Face up on the trash pile. A click stays put; only a drag takes it out. */
+    joinTrash() {
+        if (this.inHand) {
+            this.inHand = false;
+            handRelease?.(this.entity);
+        }
+        if (this.inDeck) {
+            this.inDeck = false;
+            deckRelease?.(this.entity);
+        }
+        this.inTrash = true;
         this.tapped = false;
         this.yaw = 0;
         this.yawTarget = 0;

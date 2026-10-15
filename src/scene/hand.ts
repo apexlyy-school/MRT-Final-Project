@@ -1,5 +1,6 @@
 import { Entity, Script } from 'playcanvas';
 
+import { moveCardTo } from './cardMotion.ts';
 import { PlayableCard, setHand } from './playableCard.ts';
 
 const cardGap = 0.08;
@@ -113,8 +114,7 @@ export class CardHand extends Script {
         const mid = (this.left + this.right) / 2;
         this.cards.forEach((card, index) => {
             const x = mid + (index - (count - 1) / 2) * step;
-            card.setLocalPosition(x, index * stackStep, this.centerZ);
-            card.setLocalEulerAngles(0, 0, 0);
+            moveCardTo(card, x, index * stackStep, this.centerZ);
         });
     }
 }
