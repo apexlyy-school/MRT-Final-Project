@@ -1,0 +1,182 @@
+import { Entity, StandardMaterial } from 'playcanvas';
+import type { AppBase } from 'playcanvas';
+
+// Colors sampled from the Rift Atlas match screen: navy field, slate zone lines, teal accent.
+const boardColor = '#1c355c';
+const zoneFill = '#1a3258';
+const zoneLine = '#5d7598';
+const zoneCorner = '#93abc8';
+const runeColor = '#1a3d6b';
+const runeRing = '#4d6d96';
+const blankCard = '#e4edf6';
+
+const createMaterial = (hex: string) => {
+    const material = new StandardMaterial();
+    material.diffuse.fromString(hex);
+    material.update();
+    return material;
+};
+
+type RenderType = 'box' | 'cylinder';
+
+const addMesh = (
+    parent: Entity,
+    name: string,
+    type: RenderType,
+    scale: [number, number, number],
+    position: [number, number, number],
+    hex: string
+) => {
+    const entity = new Entity(name);
+    const render = entity.addComponent('render', { type });
+    if (!render) {
+        throw new Error(`Failed to create the ${name} render component`);
+    }
+    entity.setLocalScale(...scale);
+    entity.setLocalPosition(...position);
+    render.meshInstances[0].material = createMaterial(hex);
+    parent.addChild(entity);
+    return entity;
+};
+
+const addZone = (
+    parent: Entity,
+    name: string,
+    centerX: number,
+    centerZ: number,
+    width: number,
+    depth: number,
+    corner = 0.36
+) => {
+    const y = 0.05;
+    const thickness = Math.min(0.02, width * 0.025);
+    const height = 0.012;
+
+    addMesh(parent, `${name}-fill`, 'box', [width, 0.006, depth], [centerX, 0.044, centerZ], zoneFill);
+
+    const edges: [number, number, number, number][] = [
+        [centerX, centerZ - depth / 2, width, thickness],
+        [centerX, centerZ + depth / 2, width, thickness],
+        [centerX - width / 2, centerZ, thickness, depth],
+        [centerX + width / 2, centerZ, thickness, depth]
+    ];
+    for (const [x, z, scaleX, scaleZ] of edges) {
+        addMesh(parent, `${name}-edge`, 'box', [scaleX, height, scaleZ], [x, y, z], zoneLine);
+    }
+
+    const corners = [
+        [centerX - width / 2, centerZ - depth / 2, 1, 1],
+        [centerX + width / 2, centerZ - depth / 2, -1, 1],
+        [centerX - width / 2, centerZ + depth / 2, 1, -1],
+        [centerX + width / 2, centerZ + depth / 2, -1, -1]
+    ] as const;
+    for (const [x, z, signX, signZ] of corners) {
+        addMesh(
+            parent,
+            `${name}-corner-x`,
+            'box',
+            [corner, height + 0.004, thickness * 1.6],
+            [x + signX * (corner / 2), y + 0.003, z],
+            zoneCorner
+        );
+        addMesh(
+            parent,
+            `${name}-corner-z`,
+            'box',
+            [thickness * 1.6, height + 0.004, corner],
+            [x, y + 0.003, z + signZ * (corner / 2)],
+            zoneCorner
+        );
+    }
+};
+
+const addRuneTrack = (parent: Entity) => {
+    const count = 9;
+    const nearZ = 1.35;
+    const farZ = -1.55;
+    for (let i = 0; i < count; i++) {
+        const z = nearZ + ((farZ - nearZ) * i) / (count - 1);
+        const x = -5.05;
+        addMesh(parent, `rune-ring-${i}`, 'cylinder', [0.42, 0.012, 0.42], [x, 0.046, z], runeRing);
+        addMesh(parent, `rune-${i}`, 'cylinder', [0.3, 0.02, 0.3], [x, 0.055, z], runeColor);
+    }
+};
+
+const cardWidth = 0.7;
+const cardDepth = 1.02;
+
+const addCard = (parent: Entity, name: string, x: number, z: number, hex: string) => {
+    return addMesh(parent, name, 'box', [cardWidth, 0.025, cardDepth], [x, 0.062, z], hex);
+};
+
+const cardFit = 0.1;
+
+const addCardZone = (parent: Entity, name: string, x: number, z: number) => {
+    addZone(parent, name, x, z, cardWidth + cardFit, cardDepth + cardFit, 0.12);
+};
+
+export const createBoard = (app: AppBase) => {
+    const board = new Entity('board');
+    app.root.addChild(board);
+
+    addMesh(board, 'playmat', 'box', [15.2, 0.08, 8.8], [0, 0, 0], boardColor);
+
+    // Positive Z is the near side, where the local player sits.
+    // Rune and base share the legend's Z so their centres line up; their X still clears a tapped legend.
+    const fieldShift = 0.7;
+    const zoneWidth = 3.35;
+    const leftZoneX = -1.85 - fieldShift;
+    const rightZoneX = 1.85 - fieldShift;
+
+    const playerZoneDepth = cardDepth + cardFit;
+    // Identity stays on the old battlefield footprint so the cards do not move with the fields.
+    const anchoredFieldZ = -0.15;
+    const anchoredFieldDepth = 2.25;
+    const zoneGap = 0.1;
+    const playerZoneZ = anchoredFieldZ + anchoredFieldDepth / 2 + zoneGap + playerZoneDepth / 2;
+    const playerNear = playerZoneZ + playerZoneDepth / 2;
+    const baseRight = rightZoneX + zoneWidth / 2;
+    const tappedHalfWidth = cardDepth / 2;
+    const legendX = baseRight + tappedHalfWidth + 0.28;
+    // Champion stays clear of the tapped legend and is centered on the trash, legend on the deck.
+    const championX = legendX + tappedHalfWidth + 0.28 + cardWidth / 2;
+    const identityZ = playerNear - 0.02;
+    const pileZ = identityZ + cardDepth / 2 + 0.14 + (cardDepth + cardFit) / 2;
+    const deckRight = legendX + (cardWidth + cardFit) / 2;
+
+    // Grow the battlefields toward the player. The far edge stays put; the near edge sits just above rune and base.
+    const battlefieldFar = anchoredFieldZ - anchoredFieldDepth / 2;
+    const battlefieldNear = identityZ - playerZoneDepth / 2 - zoneGap;
+    const battlefieldDepth = battlefieldNear - battlefieldFar;
+    const battlefieldZ = (battlefieldNear + battlefieldFar) / 2;
+
+    // Both battlefields share one width. The gutter is small, and the right edge lines up with the deck.
+    const battlefieldGap = 0.12;
+    const battlefieldLeft = leftZoneX - zoneWidth / 2;
+    const battlefieldWidth = (deckRight - battlefieldLeft - battlefieldGap) / 2;
+    const leftFieldX = battlefieldLeft + battlefieldWidth / 2;
+    const rightFieldX = deckRight - battlefieldWidth / 2;
+
+    addZone(board, 'battlefield-left', leftFieldX, battlefieldZ, battlefieldWidth, battlefieldDepth);
+    addZone(board, 'battlefield-right', rightFieldX, battlefieldZ, battlefieldWidth, battlefieldDepth);
+
+    // Widen the base to the left only. Its right edge still clears a tapped legend.
+    const runeRight = leftZoneX + zoneWidth / 2;
+    const baseLeft = runeRight + battlefieldGap;
+    const baseWidth = baseRight - baseLeft;
+    const baseX = (baseLeft + baseRight) / 2;
+    addZone(board, 'rune-area', leftZoneX, identityZ, zoneWidth, playerZoneDepth);
+    addZone(board, 'base', baseX, identityZ, baseWidth, playerZoneDepth);
+
+    addRuneTrack(board);
+
+    addCard(board, 'chosen-legend', legendX, identityZ, blankCard);
+    addCard(board, 'chosen-champion', championX, identityZ, blankCard);
+
+    addCardZone(board, 'deck', legendX, pileZ);
+    addCardZone(board, 'trash', championX, pileZ);
+    addCardZone(board, 'rune-deck', -3.45, pileZ);
+
+    addMesh(board, 'player-plate', 'box', [1.5, 0.02, 0.55], [-5.15, 0.05, 2.85], '#10243f');
+    addMesh(board, 'opponent-plate', 'box', [1.7, 0.02, 0.55], [4.85, 0.05, -3.05], '#10243f');
+};
