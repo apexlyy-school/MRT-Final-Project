@@ -1,6 +1,7 @@
 import { Entity, Script, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
+import { showPlayerBattlefield } from './battlefield.ts';
 import { resolveDeck } from './cardCatalog.ts';
 import type { DeckList } from './cardCatalog.ts';
 import { cancelCardMotion, moveCardTo } from './cardMotion.ts';
@@ -17,6 +18,7 @@ import {
     offerToHand,
     offerToRuneArea,
     offerToTrash,
+    offerToBattlefield,
     PlayableCard,
     setDeckDrop,
     setDeckPile
@@ -128,7 +130,7 @@ export class CardDeck extends Script {
         if (this.dragging) {
             const placed = this.rune
                 ? this.tryDrop(card) || offerToRuneArea(card)
-                : this.tryDrop(card) || offerToChampion(card) || offerToBase(card) || offerToHand(card) || offerToTrash(card);
+                : this.tryDrop(card) || offerToChampion(card) || offerToBattlefield(card) || offerToBase(card) || offerToHand(card) || offerToTrash(card);
             if (!placed) {
                 const position = card.getLocalPosition();
                 card.setLocalPosition(position.x, 0, position.z);
@@ -234,7 +236,11 @@ export class CardDeck extends Script {
 
     private async deal(list: DeckList, token: number) {
         const resolved = await resolveDeck(list);
-        if (!resolved || token !== this.loadToken) {
+        if (token !== this.loadToken) {
+            return;
+        }
+        if (!resolved) {
+            showPlayerBattlefield(null);
             return;
         }
         const mainPile = CardDeck.piles.find((pile) => !pile.rune);
@@ -248,6 +254,7 @@ export class CardDeck extends Script {
         if (resolved.champion && championZone instanceof CardChampion) {
             championZone.place(resolved.champion.art, resolved.champion.back);
         }
+        showPlayerBattlefield(resolved.battlefield);
     }
 
     placeLegend(art: string, back: string) {
@@ -320,6 +327,8 @@ export class CardDeck extends Script {
         const hand = this.zoneScript('hand', 'cardHand');
         const runes = this.zoneScript('rune-area', 'cardHand');
         const base = this.zoneScript('base', 'cardHand');
+        const battlefield1 = this.zoneScript('battlefield-1', 'cardHand');
+        const battlefield2 = this.zoneScript('battlefield-2', 'cardHand');
         const trash = this.zoneScript('trash', 'cardTrash');
         const champion = this.zoneScript('chosen-champion', 'cardChampion');
         if (hand instanceof CardHand) {
@@ -333,6 +342,14 @@ export class CardDeck extends Script {
         if (base instanceof CardHand) {
             base.cards.length = 0;
             base.syncLabel();
+        }
+        if (battlefield1 instanceof CardHand) {
+            battlefield1.cards.length = 0;
+            battlefield1.syncLabel();
+        }
+        if (battlefield2 instanceof CardHand) {
+            battlefield2.cards.length = 0;
+            battlefield2.syncLabel();
         }
         if (trash instanceof CardTrash) {
             trash.cards.length = 0;

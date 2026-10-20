@@ -69,6 +69,13 @@ let runeOwns: ((card: Entity, x: number, z: number) => boolean) | null = null;
 let baseDrop: ((card: Entity) => boolean) | null = null;
 let baseRelease: ((card: Entity) => void) | null = null;
 let baseOwns: ((card: Entity, x: number, z: number) => boolean) | null = null;
+type BattlefieldRow = {
+    drop: (card: Entity) => boolean;
+    release: (card: Entity) => void;
+    owns: (card: Entity, x: number, z: number) => boolean;
+};
+
+const battlefieldRows: BattlefieldRow[] = [];
 let championDrop: ((card: Entity) => boolean) | null = null;
 let championRelease: ((card: Entity) => void) | null = null;
 let trashDrop: ((card: Entity) => boolean) | null = null;
@@ -144,6 +151,49 @@ export const setBase = (handlers: {
 
 export const offerToBase = (card: Entity) => baseDrop?.(card) ?? false;
 
+/** Battlefield 1 and 2 rows register here so either can accept a drop. */
+export const registerBattlefieldRow = (handlers: BattlefieldRow) => {
+    battlefieldRows.push(handlers);
+    return () => {
+        const index = battlefieldRows.indexOf(handlers);
+        if (index >= 0) {
+            battlefieldRows.splice(index, 1);
+        }
+    };
+};
+
+export const offerToBattlefield = (card: Entity) => battlefieldRows.some((row) => row.drop(card));
+
+/** Remove a card from every battlefield row without joining another zone. */
+export const vacateBattlefield = (card: Entity) => {
+    for (const row of battlefieldRows) {
+        row.release(card);
+    }
+};
+
+const ownsOnBattlefield = (card: Entity, x: number, z: number) => {
+    return battlefieldRows.some((row) => row.owns(card, x, z));
+};
+
+const rowRelayouts: ((card: Entity) => void)[] = [];
+
+/** Seating rows register so a tap can restack overlap order. */
+export const registerRowRelayout = (handler: (card: Entity) => void) => {
+    rowRelayouts.push(handler);
+    return () => {
+        const index = rowRelayouts.indexOf(handler);
+        if (index >= 0) {
+            rowRelayouts.splice(index, 1);
+        }
+    };
+};
+
+const requestRowRelayout = (card: Entity) => {
+    for (const relayout of rowRelayouts) {
+        relayout(card);
+    }
+};
+
 export const buryInMatchingDeck = (card: Entity) => deckBury?.(card) ?? false;
 
 /** The chosen-champion slot registers drop and removal. */
@@ -199,6 +249,9 @@ export class PlayableCard extends Script {
     champion = false;
     inChampion = false;
     inBase = false;
+    inBattlefield = false;
+    /** Display stack in a seating row. Lower values draw on top. 0 means unset. */
+    layer = 0;
 
     private faceMaterial: StandardMaterial | null = null;
     private art: Texture | null = null;
@@ -234,6 +287,9 @@ export class PlayableCard extends Script {
             return;
         }
         if (this.inBase && baseOwns && !baseOwns(this.entity, worldX, worldZ)) {
+            return;
+        }
+        if (this.inBattlefield && !ownsOnBattlefield(this.entity, worldX, worldZ)) {
             return;
         }
         event.stopPropagation();
@@ -278,6 +334,11 @@ export class PlayableCard extends Script {
                 this.inBase = false;
                 baseRelease?.(this.entity);
             }
+            if (this.inBattlefield) {
+                this.inBattlefield = false;
+                this.layer = 0;
+                vacateBattlefield(this.entity);
+            }
         }
         if (this.pinned || !this.dragging || !this.rayTable(event)) {
             return;
@@ -304,7 +365,7 @@ export class PlayableCard extends Script {
             }
             const placed = this.rune
                 ? offerToDeck(this.entity) || offerToRuneArea(this.entity)
-                : offerToChampion(this.entity) || offerToBase(this.entity) || (deckDrop?.(this.entity) ?? false) || (handDrop?.(this.entity) ?? false) || (trashDrop?.(this.entity) ?? false);
+                : offerToChampion(this.entity) || offerToBattlefield(this.entity) || offerToBase(this.entity) || (deckDrop?.(this.entity) ?? false) || (handDrop?.(this.entity) ?? false) || (trashDrop?.(this.entity) ?? false);
             if (placed) {
                 return;
             }
@@ -317,7 +378,12 @@ export class PlayableCard extends Script {
         }
         this.tapped = !this.tapped;
         this.yawTarget = this.tapped ? -90 : 0;
+        requestRowRelayout(this.entity);
     };
+
+    isTapped() {
+        return this.tapped;
+    }
 
     initialize() {
         window.addEventListener('pointerdown', this.onPointerDown, true);
@@ -380,11 +446,22 @@ export class PlayableCard extends Script {
         if (this.inBase && baseOwns && !baseOwns(this.entity, worldX, worldZ)) {
             return;
         }
+        if (this.inBattlefield && !ownsOnBattlefield(this.entity, worldX, worldZ)) {
+            return;
+        }
         event.preventDefault();
         event.stopImmediatePropagation();
         this.suppressCamera = true;
         setCameraEnabled(this.app, false);
         sendToTrash(this.entity);
+    }
+
+    private leaveBattlefield() {
+        if (this.inBattlefield) {
+            this.inBattlefield = false;
+            this.layer = 0;
+            vacateBattlefield(this.entity);
+        }
     }
 
     /** Square the card, turn it face down, and stop it taking its own clicks. */
@@ -409,6 +486,7 @@ export class PlayableCard extends Script {
             this.inBase = false;
             baseRelease?.(this.entity);
         }
+        this.leaveBattlefield();
         this.inDeck = true;
         this.tapped = false;
         this.yaw = 0;
@@ -435,6 +513,7 @@ export class PlayableCard extends Script {
             this.inBase = false;
             baseRelease?.(this.entity);
         }
+        this.leaveBattlefield();
         this.inDeck = false;
         this.inHand = true;
         this.tapped = false;
@@ -466,6 +545,7 @@ export class PlayableCard extends Script {
             this.inBase = false;
             baseRelease?.(this.entity);
         }
+        this.leaveBattlefield();
         this.inRuneArea = true;
         this.tapped = false;
         this.yaw = 0;
@@ -496,6 +576,7 @@ export class PlayableCard extends Script {
             this.inBase = false;
             baseRelease?.(this.entity);
         }
+        this.leaveBattlefield();
         this.inTrash = true;
         this.tapped = false;
         this.yaw = 0;
@@ -526,6 +607,7 @@ export class PlayableCard extends Script {
             this.inBase = false;
             baseRelease?.(this.entity);
         }
+        this.leaveBattlefield();
         this.inChampion = true;
         this.tapped = false;
         this.yaw = 0;
@@ -556,7 +638,42 @@ export class PlayableCard extends Script {
             this.inChampion = false;
             championRelease?.(this.entity);
         }
+        this.leaveBattlefield();
         this.inBase = true;
+        this.tapped = true;
+        this.yaw = -90;
+        this.yawTarget = -90;
+        this.entity.setLocalEulerAngles(0, -90, 0);
+        this.setFaceUp(true);
+    }
+
+    /** Face up on a battlefield row, already turned sideways. A click stands it up. */
+    joinBattlefield() {
+        if (this.inDeck) {
+            this.inDeck = false;
+            deckRelease?.(this.entity);
+        }
+        if (this.inHand) {
+            this.inHand = false;
+            handRelease?.(this.entity);
+        }
+        if (this.inTrash) {
+            this.inTrash = false;
+            trashRelease?.(this.entity);
+        }
+        if (this.inRuneArea) {
+            this.inRuneArea = false;
+            runeRelease?.(this.entity);
+        }
+        if (this.inChampion) {
+            this.inChampion = false;
+            championRelease?.(this.entity);
+        }
+        if (this.inBase) {
+            this.inBase = false;
+            baseRelease?.(this.entity);
+        }
+        this.inBattlefield = true;
         this.tapped = true;
         this.yaw = -90;
         this.yawTarget = -90;
@@ -739,22 +856,129 @@ const textureFor = (device: GraphicsDevice, url: string) => {
     return pending;
 };
 
-let sharedFace: Mesh | null = null;
-let sharedEdge: Mesh | null = null;
+/** Turns a portrait image into a landscape texture so it can fill a sideways battlefield card. */
+const loadRotatedCardTexture = (device: GraphicsDevice, url: string) => new Promise<Texture>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = image.height;
+        canvas.height = image.width;
+        const context = canvas.getContext('2d');
+        if (!context) {
+            reject(new Error('Failed to rotate the card'));
+            return;
+        }
+        context.translate(canvas.width, 0);
+        context.rotate(Math.PI / 2);
+        context.drawImage(image, 0, 0);
+        const texture = new Texture(device, {
+            name: 'card-art-rotated',
+            width: canvas.width,
+            height: canvas.height,
+            format: PIXELFORMAT_RGBA8,
+            srgb: true,
+            mipmaps: true,
+            minFilter: FILTER_LINEAR_MIPMAP_LINEAR,
+            magFilter: FILTER_LINEAR,
+            addressU: ADDRESS_CLAMP_TO_EDGE,
+            addressV: ADDRESS_CLAMP_TO_EDGE,
+            anisotropy: Math.min(8, device.maxAnisotropy)
+        });
+        texture.setSource(canvas);
+        resolve(texture);
+    };
+    image.onerror = () => reject(new Error('Failed to load the card'));
+    image.src = url;
+});
+
+const textureRotatedFor = (device: GraphicsDevice, url: string) => {
+    const key = `${url}|rot90`;
+    const cached = textureCache.get(key);
+    if (cached) {
+        return cached;
+    }
+    const pending = loadRotatedCardTexture(device, url);
+    textureCache.set(key, pending);
+    return pending;
+};
+
+const sharedFaces = new Map<string, Mesh>();
+const sharedEdges = new Map<string, Mesh>();
 
 const keepMesh = (mesh: Mesh) => {
     mesh.incRefCount();
     return mesh;
 };
 
+const meshKey = (width: number, depth: number) => `${width.toFixed(4)}x${depth.toFixed(4)}`;
+
 const faceMesh = (device: GraphicsDevice, width: number, depth: number) => {
-    sharedFace ??= keepMesh(roundedFaceMesh(device, width, depth));
-    return sharedFace;
+    const key = meshKey(width, depth);
+    const cached = sharedFaces.get(key);
+    if (cached) {
+        return cached;
+    }
+    const mesh = keepMesh(roundedFaceMesh(device, width, depth));
+    sharedFaces.set(key, mesh);
+    return mesh;
 };
 
 const edgeMesh = (device: GraphicsDevice, width: number, depth: number) => {
-    sharedEdge ??= keepMesh(roundedEdgeMesh(device, width, depth, 0.02));
-    return sharedEdge;
+    const key = meshKey(width, depth);
+    const cached = sharedEdges.get(key);
+    if (cached) {
+        return cached;
+    }
+    const mesh = keepMesh(roundedEdgeMesh(device, width, depth, 0.02));
+    sharedEdges.set(key, mesh);
+    return mesh;
+};
+
+const buildCardShell = (
+    parent: Entity,
+    device: GraphicsDevice,
+    x: number,
+    z: number,
+    width: number,
+    depth: number,
+    name: string
+) => {
+    const card = new Entity(name);
+    card.setLocalPosition(x, restY, z);
+    parent.addChild(card);
+
+    const edge = new StandardMaterial();
+    edge.diffuse.fromString('#102033');
+    edge.update();
+    addMeshInstance(card, 'card-edge', edgeMesh(device, width, depth), edge, 0.06);
+
+    const face = new StandardMaterial();
+    face.diffuse.fromString('#ffffff');
+    face.useLighting = false;
+    face.update();
+    addMeshInstance(card, 'card-face', faceMesh(device, width, depth), face, 0.08);
+    return { card, face };
+};
+
+/** A card with no pointer handlers. Deck swaps leave it alone because its name is not `card`. */
+export const createStaticCard = (
+    parent: Entity,
+    device: GraphicsDevice,
+    x: number,
+    z: number,
+    width: number,
+    depth: number,
+    artUrl: string,
+    name: string,
+    rotateArt = false
+) => {
+    const { card, face } = buildCardShell(parent, device, x, z, width, depth, name);
+    const load = rotateArt ? textureRotatedFor : textureFor;
+    void load(device, artUrl).then((texture) => {
+        face.diffuseMap = texture;
+        face.update();
+    });
+    return card;
 };
 
 export const createPlayableCard = (
@@ -771,20 +995,7 @@ export const createPlayableCard = (
     pinned = false,
     champion = false
 ) => {
-    const card = new Entity('card');
-    card.setLocalPosition(x, restY, z);
-    parent.addChild(card);
-
-    const edge = new StandardMaterial();
-    edge.diffuse.fromString('#102033');
-    edge.update();
-    addMeshInstance(card, 'card-edge', edgeMesh(device, width, depth), edge, 0.06);
-
-    const face = new StandardMaterial();
-    face.diffuse.fromString('#ffffff');
-    face.useLighting = false;
-    face.update();
-    addMeshInstance(card, 'card-face', faceMesh(device, width, depth), face, 0.08);
+    const { card, face } = buildCardShell(parent, device, x, z, width, depth, 'card');
 
     const scripts = card.addComponent('script');
     if (!scripts) {

@@ -27,10 +27,12 @@ const deckFiles = import.meta.glob('../decks/*.json', {
 const isCardBack = (path: string) => /card\s*back/i.test(path);
 const isRuneBack = (path: string) => /rune\s*back/i.test(path);
 const isLegendBack = (path: string) => /legend\s*back/i.test(path);
+const isBattlefieldBack = (path: string) => /battlefield\s*back/i.test(path);
 
 let backUrl = '';
 let runeBackUrl = '';
 let legendBackUrl = '';
+let battlefieldBackUrl = '';
 
 for (const [path, url] of Object.entries(artFiles)) {
     if (isCardBack(path)) {
@@ -39,8 +41,12 @@ for (const [path, url] of Object.entries(artFiles)) {
         runeBackUrl = url;
     } else if (isLegendBack(path)) {
         legendBackUrl = url;
+    } else if (isBattlefieldBack(path)) {
+        battlefieldBackUrl = url;
     }
 }
+
+export const battlefieldBack = () => battlefieldBackUrl || null;
 
 const isEntries = (value: unknown): value is DeckEntry[] => Array.isArray(value)
     && value.every((entry) => typeof entry?.name === 'string' && typeof entry.count === 'number');
@@ -116,14 +122,20 @@ export const resolveDeck = async (list: DeckList) => {
         return null;
     }
     const championName = list.champion?.trim() ?? '';
-    const [copies, runes, legendArt, championArt] = await Promise.all([
+    const battlefieldName = list.battlefields?.find((entry) => Math.floor(entry.count) >= 1)?.name.trim() ?? '';
+    const [copies, runes, legendArt, championArt, battlefieldCard] = await Promise.all([
         expand(list.main, list.name),
         expand(runeEntries, list.name),
         legendName ? artFor(legendName, list.name) : Promise.resolve(null),
-        championName ? artFor(championName, list.name) : Promise.resolve(null)
+        championName ? artFor(championName, list.name) : Promise.resolve(null),
+        battlefieldName ? cardByName(battlefieldName) : Promise.resolve(null)
     ]);
     if (!copies || !runes || (legendName && !legendArt) || (championName && !championArt)) {
         return null;
+    }
+    const battlefieldArt = battlefieldCard ? proxiedCardImage(battlefieldCard.image) : null;
+    if (battlefieldName && !battlefieldArt) {
+        console.warn(`Deck "${list.name}" is using the blank battlefield because "${battlefieldName}" could not be loaded.`);
     }
     return {
         back: backUrl,
@@ -131,7 +143,8 @@ export const resolveDeck = async (list: DeckList) => {
         runeBack: runeBackUrl,
         runes,
         legend: legendName && legendArt ? { art: legendArt, back: legendBackUrl } : null,
-        champion: championName && championArt ? { art: championArt, back: backUrl } : null
+        champion: championName && championArt ? { art: championArt, back: backUrl } : null,
+        battlefield: battlefieldArt
     };
 };
 

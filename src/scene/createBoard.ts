@@ -1,7 +1,8 @@
 import { Entity, StandardMaterial } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
-import { loadDeckLists } from './cardCatalog.ts';
+import { addBattlefield, mountPlayerBattlefield } from './battlefield.ts';
+import { battlefieldBack, loadDeckLists } from './cardCatalog.ts';
 import { bindCardMotion } from './cardMotion.ts';
 import { addChampion } from './champion.ts';
 import { addDeck } from './deck.ts';
@@ -151,8 +152,8 @@ export const createBoard = (app: AppBase) => {
     const leftFieldX = battlefieldLeft + battlefieldWidth / 2;
     const rightFieldX = deckRight - battlefieldWidth / 2;
 
-    addZone(board, 'battlefield-left', leftFieldX, battlefieldZ, battlefieldWidth, battlefieldDepth);
-    addZone(board, 'battlefield-right', rightFieldX, battlefieldZ, battlefieldWidth, battlefieldDepth);
+    addZone(board, 'battlefield-1-zone', leftFieldX, battlefieldZ, battlefieldWidth, battlefieldDepth);
+    addZone(board, 'battlefield-2-zone', rightFieldX, battlefieldZ, battlefieldWidth, battlefieldDepth);
 
     // Widen the base to the left only. Its right edge still clears a tapped legend.
     const runeRight = leftZoneX + zoneWidth / 2;
@@ -161,8 +162,47 @@ export const createBoard = (app: AppBase) => {
     const baseX = (baseLeft + baseRight) / 2;
     addZone(board, 'rune-area', leftZoneX, identityZ, zoneWidth, playerZoneDepth);
     addZone(board, 'base', baseX, identityZ, baseWidth, playerZoneDepth);
-    addZoneLabel(board, app.graphicsDevice, leftFieldX, battlefieldZ, 'Battlefield', 'battlefield-left-label');
-    addZoneLabel(board, app.graphicsDevice, rightFieldX, battlefieldZ, 'Battlefield', 'battlefield-right-label');
+    const battlefield1Label = addZoneLabel(board, app.graphicsDevice, leftFieldX, battlefieldZ, 'Battlefield 1', 'battlefield-1-label');
+    const battlefield2Label = addZoneLabel(board, app.graphicsDevice, rightFieldX, battlefieldZ, 'Battlefield 2', 'battlefield-2-label');
+    const battlefieldArt = battlefieldBack();
+    const battlefieldScale = 1.25;
+    // Landscape footprint: long side along X so Riftcodex battlefield art maps upright.
+    const bfCardWidth = cardDepth * battlefieldScale;
+    const bfCardDepth = cardWidth * battlefieldScale;
+    const unitZoneDepth = cardDepth + cardFit;
+    // Sit unit rows on the near edge of each battlefield card so they stay inside the zone.
+    const unitOverlap = 0.1;
+    const unitCenterZ = battlefieldZ + bfCardDepth / 2 + cardDepth / 2 - unitOverlap;
+    const battlefield1Left = leftFieldX - battlefieldWidth / 2;
+    const battlefield1Right = leftFieldX + battlefieldWidth / 2;
+    const battlefield2Left = rightFieldX - battlefieldWidth / 2;
+    const battlefield2Right = rightFieldX + battlefieldWidth / 2;
+    if (battlefieldArt) {
+        addBattlefield(
+            board,
+            app.graphicsDevice,
+            rightFieldX,
+            battlefieldZ,
+            bfCardWidth,
+            bfCardDepth,
+            battlefieldArt,
+            'battlefield-2-art',
+            true
+        );
+        battlefield2Label.enabled = false;
+        mountPlayerBattlefield(
+            board,
+            app.graphicsDevice,
+            leftFieldX,
+            battlefieldZ,
+            bfCardWidth,
+            bfCardDepth,
+            battlefieldArt,
+            battlefield1Label
+        );
+    }
+    addHand(board, battlefield1Left, battlefield1Right, unitCenterZ, unitZoneDepth, cardWidth, false, cardDepth, false, 1);
+    addHand(board, battlefield2Left, battlefield2Right, unitCenterZ, unitZoneDepth, cardWidth, false, cardDepth, false, 2);
 
     const plateX = -5.15;
     addScoreTrack(board, app.graphicsDevice, {

@@ -2,7 +2,15 @@ import { Entity, Script } from 'playcanvas';
 
 import { moveCardTo } from './cardMotion.ts';
 import { addZoneLabel } from './emptySlot.ts';
-import { PlayableCard, setBase, setHand, setRuneArea } from './playableCard.ts';
+import {
+    PlayableCard,
+    registerBattlefieldRow,
+    registerRowRelayout,
+    setBase,
+    setHand,
+    setRuneArea,
+    vacateBattlefield
+} from './playableCard.ts';
 
 const cardGap = 0.08;
 const stackStep = 0.006;
@@ -25,12 +33,16 @@ export class CardHand extends Script {
     cardDepth = 1.02;
     rune = false;
     base = false;
+    /** 1 = battlefield 1 (left), 2 = battlefield 2 (right). 0 = not a battlefield row. */
+    battlefield = 0;
 
     private zoneLabel: Entity | null = null;
+    private unregisterRelayout: (() => void) | null = null;
+    private unregisterBattlefield: (() => void) | null = null;
 
     initialize() {
         const board = this.entity.parent;
-        if (board instanceof Entity) {
+        if (board instanceof Entity && this.battlefield === 0) {
             const label = this.base ? 'Base' : this.rune ? 'Rune Area' : 'Hand';
             this.zoneLabel = addZoneLabel(board, this.app.graphicsDevice, (this.left + this.right) / 2, this.centerZ, label, `${label}-label`);
         }
@@ -40,20 +52,31 @@ export class CardHand extends Script {
             release: (card: Entity) => this.release(card),
             owns: (card: Entity, x: number, z: number) => this.owns(card, x, z)
         };
-        if (this.base) {
+        if (this.battlefield > 0) {
+            this.unregisterBattlefield = registerBattlefieldRow(handlers);
+        } else if (this.base) {
             setBase(handlers);
         } else if (this.rune) {
             setRuneArea(handlers);
         } else {
             setHand(handlers);
         }
+        this.unregisterRelayout = registerRowRelayout((card) => {
+            if (this.cards.includes(card)) {
+                this.layout();
+            }
+        });
         this.on('destroy', () => {
-            if (this.base) {
-                setBase(null);
-            } else if (this.rune) {
-                setRuneArea(null);
-            } else {
-                setHand(null);
+            this.unregisterRelayout?.();
+            this.unregisterBattlefield?.();
+            if (this.battlefield === 0) {
+                if (this.base) {
+                    setBase(null);
+                } else if (this.rune) {
+                    setRuneArea(null);
+                } else {
+                    setHand(null);
+                }
             }
             this.zoneLabel?.destroy();
         });
@@ -68,8 +91,8 @@ export class CardHand extends Script {
     private draw(card: Entity) {
         this.remove(card);
         this.cards.push(card);
-        this.layout();
         this.seat(card);
+        this.layout();
     }
 
     private tryDrop(card: Entity) {
@@ -81,17 +104,23 @@ export class CardHand extends Script {
         if (!this.contains(position.x, position.z)) {
             return false;
         }
-        this.remove(card);
+        if (this.battlefield > 0) {
+            vacateBattlefield(card);
+        } else {
+            this.remove(card);
+        }
         const slot = this.slotFor(position.x, this.cards.length + 1);
         this.cards.splice(slot, 0, card);
-        this.layout();
         this.seat(card);
+        this.layout();
         return true;
     }
 
     private seat(card: Entity) {
         const playable = playableOn(card);
-        if (this.base) {
+        if (this.battlefield > 0) {
+            playable?.joinBattlefield();
+        } else if (this.base) {
             playable?.joinBase();
         } else if (this.rune) {
             playable?.joinRuneArea();
@@ -108,14 +137,19 @@ export class CardHand extends Script {
     }
 
     private owns(card: Entity, x: number, z: number) {
-        for (let i = this.cards.length - 1; i >= 0; i--) {
-            const stacked = this.cards[i];
+        let top: Entity | null = null;
+        let topY = Number.NEGATIVE_INFINITY;
+        for (const stacked of this.cards) {
             if (!playableOn(stacked)?.covers(x, z)) {
                 continue;
             }
-            return stacked === card;
+            const y = stacked.getLocalPosition().y;
+            if (y >= topY) {
+                topY = y;
+                top = stacked;
+            }
         }
-        return false;
+        return top === card;
     }
 
     private remove(card: Entity) {
@@ -136,9 +170,10 @@ export class CardHand extends Script {
         if (count <= 1) {
             return 0;
         }
-        // Base cards sit sideways, and a tapped rune is as wide as the card is tall.
-        const span = this.base || this.rune ? this.cardDepth : this.cardWidth;
-        const stride = this.base ? this.cardDepth : this.cardWidth;
+        const sideways = this.base || this.battlefield > 0;
+        // Sideways seats and runes reserve a tapped card's width so edge cards stay inside.
+        const span = sideways || this.rune ? this.cardDepth : this.cardWidth;
+        const stride = sideways ? this.cardDepth : this.cardWidth;
         const inner = this.right - this.left - borderInset * 2;
         const room = (inner - span) / (count - 1);
         return Math.min(stride + cardGap, Math.max(room, 0));
@@ -165,7 +200,24 @@ export class CardHand extends Script {
         const mid = (this.left + this.right) / 2;
         this.cards.forEach((card, index) => {
             const x = mid + (index - (count - 1) / 2) * step;
-            moveCardTo(card, x, index * stackStep, this.centerZ);
+            const playable = playableOn(card);
+            if (this.battlefield > 0 || this.rune || this.base) {
+                // Leftmost is layer 1 (on top). Rightmost is layer N (underneath).
+                const layer = index + 1;
+                if (playable) {
+                    playable.layer = layer;
+                }
+                const y = (this.battlefield > 0 ? 0.02 : 0) + (count - layer) * stackStep;
+                moveCardTo(card, x, y, this.centerZ);
+                return;
+            }
+            if (playable) {
+                playable.layer = 0;
+            }
+            const tapped = playable?.isTapped() ?? false;
+            // Hand: untapped rightmost on top; tapped rises above cards to the right.
+            const y = (tapped ? count - index : index) * stackStep;
+            moveCardTo(card, x, y, this.centerZ);
         });
         this.syncLabel();
     }
@@ -180,9 +232,12 @@ export const addHand = (
     cardWidth: number,
     rune = false,
     cardDepth = 1.02,
-    base = false
+    base = false,
+    battlefield = 0
 ) => {
-    const hand = new Entity(base ? 'base' : rune ? 'rune-area' : 'hand');
+    const hand = new Entity(
+        battlefield > 0 ? `battlefield-${battlefield}` : base ? 'base' : rune ? 'rune-area' : 'hand'
+    );
     parent.addChild(hand);
     const scripts = hand.addComponent('script');
     if (!scripts) {
@@ -197,7 +252,8 @@ export const addHand = (
             cardWidth,
             cardDepth,
             rune,
-            base
+            base,
+            battlefield
         }
     });
 };
