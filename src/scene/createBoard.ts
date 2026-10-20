@@ -8,6 +8,7 @@ import { addChampion } from './champion.ts';
 import { addDeck } from './deck.ts';
 import { mountDeckPicker } from './deckPicker.ts';
 import { addZoneLabel } from './emptySlot.ts';
+import { addEndTurn } from './endTurn.ts';
 import { addHand } from './hand.ts';
 import { takeImportedDeck } from './importDeck.ts';
 import { addScoreTrack, scoreColumnMidOffset, scoreRadius } from './scoreTrack.ts';
@@ -55,7 +56,7 @@ const addZone = (
     centerZ: number,
     width: number,
     depth: number,
-    corner = 0.36
+    corner = 0.2
 ) => {
     const y = 0.05;
     const thickness = Math.min(0.02, width * 0.025);
@@ -129,9 +130,11 @@ export const createBoard = (app: AppBase) => {
     const zoneGap = 0.1;
     const playerZoneZ = anchoredFieldZ + anchoredFieldDepth / 2 + zoneGap + playerZoneDepth / 2;
     const playerNear = playerZoneZ + playerZoneDepth / 2;
-    const baseRight = rightZoneX + zoneWidth / 2;
+    // Legend/deck stay on the original anchor; only the base grows into the gap toward them.
     const tappedHalfWidth = cardDepth / 2;
-    const legendX = baseRight + tappedHalfWidth + 0.28;
+    const legendAnchor = rightZoneX + zoneWidth / 2;
+    const legendX = legendAnchor + tappedHalfWidth + 0.28;
+    const baseRight = legendAnchor + 0.2;
     // Champion stays just clear of a tapped legend, and is centered on the trash. Legend stays on the deck.
     const identityGap = 0.12;
     const championX = legendX + tappedHalfWidth + identityGap + cardWidth / 2;
@@ -145,17 +148,17 @@ export const createBoard = (app: AppBase) => {
     const battlefieldDepth = battlefieldNear - battlefieldFar;
     const battlefieldZ = (battlefieldNear + battlefieldFar) / 2;
 
-    // Both battlefields share one width. The gutter is small, and the right edge lines up with the deck.
-    const battlefieldGap = 0.12;
+    // Shared width from the tighter span; BF1 keeps its left edge, BF2 sits closer with a smaller gutter.
     const battlefieldLeft = leftZoneX - zoneWidth / 2;
-    const battlefieldWidth = (deckRight - battlefieldLeft - battlefieldGap) / 2;
+    const battlefieldWidth = (deckRight - battlefieldLeft - 0.28) / 2;
+    const battlefieldGap = 0.12;
     const leftFieldX = battlefieldLeft + battlefieldWidth / 2;
-    const rightFieldX = deckRight - battlefieldWidth / 2;
+    const rightFieldX = battlefieldLeft + battlefieldWidth + battlefieldGap + battlefieldWidth / 2;
 
     addZone(board, 'battlefield-1-zone', leftFieldX, battlefieldZ, battlefieldWidth, battlefieldDepth);
     addZone(board, 'battlefield-2-zone', rightFieldX, battlefieldZ, battlefieldWidth, battlefieldDepth);
 
-    // Widen the base to the left only. Its right edge still clears a tapped legend.
+    // Base spans from the rune gutter to baseRight; legend still clears a tapped card.
     const runeRight = leftZoneX + zoneWidth / 2;
     const baseLeft = runeRight + battlefieldGap;
     const baseWidth = baseRight - baseLeft;
@@ -211,6 +214,13 @@ export const createBoard = (app: AppBase) => {
     });
 
     addChampion(board, championX, identityZ, cardWidth, cardDepth);
+    // Above the champion, nudged right so the button clears battlefield 2's border.
+    const endTurnWidth = 1.15;
+    const endTurnDepth = 0.4;
+    const endTurnGap = 0.12;
+    const endTurnX = championX;
+    const endTurnZ = identityZ - cardDepth / 2 - endTurnGap - endTurnDepth / 2;
+    addEndTurn(board, app.graphicsDevice, endTurnX, endTurnZ, endTurnWidth, endTurnDepth);
 
     addCardZone(board, 'deck', legendX, pileZ);
     const deck = addDeck(board, legendX, pileZ, cardWidth, cardDepth, false, identityZ);
@@ -225,7 +235,6 @@ export const createBoard = (app: AppBase) => {
     const handLeft = runeDeckX + pileHalf + handMargin;
     const handRight = legendX - pileHalf - handMargin;
     const handDepth = cardDepth + cardFit;
-    addZone(board, 'hand', (handLeft + handRight) / 2, pileZ, handRight - handLeft, handDepth);
     addHand(board, handLeft, handRight, pileZ, handDepth, cardWidth);
     const runeAreaLeft = leftZoneX - zoneWidth / 2;
     const runeAreaRight = leftZoneX + zoneWidth / 2;

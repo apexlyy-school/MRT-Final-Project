@@ -220,6 +220,14 @@ export class ScoreTrack extends Script {
         }
     }
 
+    /** Advance the track by one or more points, capped at the last ring. */
+    gain(amount: number) {
+        if (amount <= 0) {
+            return;
+        }
+        this.target = Math.min(this.buttons.length - 1, this.target + Math.floor(amount));
+    }
+
     private pick(event: PointerEvent) {
         const cameraNode = this.app.root.findByName('camera');
         const camera = cameraNode instanceof Entity ? cameraNode.camera : null;

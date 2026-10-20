@@ -387,6 +387,16 @@ export class PlayableCard extends Script {
         return this.tapped;
     }
 
+    /** Stand the card upright. Used at turn end for every seated card. */
+    untap() {
+        if (!this.tapped) {
+            return;
+        }
+        this.tapped = false;
+        this.yawTarget = 0;
+        requestRowRelayout(this.entity);
+    }
+
     initialize() {
         window.addEventListener('pointerdown', this.onPointerDown, true);
         window.addEventListener('pointermove', this.onPointerMove);

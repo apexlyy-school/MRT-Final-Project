@@ -200,6 +200,21 @@ export class CardDeck extends Script {
         }
     }
 
+    /** Draw the top card into the hand or rune area. Returns false when the pile is empty. */
+    drawTop() {
+        if (this.cards.length === 0) {
+            return false;
+        }
+        const card = this.cards[this.cards.length - 1];
+        this.take(card, true);
+        if (this.rune) {
+            drawToRuneArea(card);
+        } else {
+            drawToHand(card);
+        }
+        return true;
+    }
+
     /** Dropped on this pile's zone: tuck the matching card under the pile, face down. */
     tryDrop(card: Entity) {
         if (!this.matches(card) || !this.overZone(card)) {
