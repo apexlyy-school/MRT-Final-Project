@@ -1,0 +1,91 @@
+{
+    "name": "Sample Darius",
+    "legend": "Darius - Hand of Noxus",
+    "champion": "Darius - Trifarian",
+    "main": [
+        {
+            "name": "Noxus Hopeful",
+            "count": 3
+        },
+        {
+            "name": "Hidden Blade",
+            "count": 3
+        },
+        {
+            "name": "Vanguard Captain",
+            "count": 3
+        },
+        {
+            "name": "Spectral Matron",
+            "count": 3
+        },
+        {
+            "name": "Baited Hook",
+            "count": 3
+        },
+        {
+            "name": "Seal of Unity",
+            "count": 3
+        },
+        {
+            "name": "Honest Broker",
+            "count": 3
+        },
+        {
+            "name": "Rally the Troops",
+            "count": 3
+        },
+        {
+            "name": "Brynhir Thundersong",
+            "count": 2
+        },
+        {
+            "name": "Forge of the Future",
+            "count": 2
+        },
+        {
+            "name": "Trifarian Gloryseeker",
+            "count": 2
+        },
+        {
+            "name": "Altar of Memories",
+            "count": 2
+        },
+        {
+            "name": "Deathgrip",
+            "count": 1
+        },
+        {
+            "name": "Draven - Showboat",
+            "count": 3
+        },
+        {
+            "name": "Rek'Sai - Breacher",
+            "count": 3
+        }
+    ],
+    "battlefields": [
+        {
+            "name": "Monastery of Hirana",
+            "count": 1
+        },
+        {
+            "name": "Trifarian War Camp",
+            "count": 1
+        },
+        {
+            "name": "Zaun Warrens",
+            "count": 1
+        }
+    ],
+    "runes": [
+        {
+            "name": "Order Rune",
+            "count": 8
+        },
+        {
+            "name": "Fury Rune",
+            "count": 4
+        }
+    ]
+}

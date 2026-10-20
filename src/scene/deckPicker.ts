@@ -270,6 +270,39 @@ export const mountDeckPicker = (
     closeButton.textContent = '×';
     const text = document.createElement('textarea');
     text.className = 'deck-import-text';
+    text.placeholder = [
+        'Legend:',
+        '1 Darius - Hand of Noxus',
+        '',
+        'Champion:',
+        '1 Darius - Trifarian',
+        '',
+        'MainDeck:',
+        '3 Noxus Hopeful',
+        '3 Hidden Blade',
+        '3 Vanguard Captain',
+        '3 Spectral Matron',
+        '3 Baited Hook',
+        '3 Seal of Unity',
+        '3 Honest Broker',
+        '3 Rally the Troops',
+        '2 Brynhir Thundersong',
+        '2 Forge of the Future',
+        '2 Trifarian Gloryseeker',
+        '2 Altar of Memories',
+        '1 Deathgrip',
+        '3 Draven - Showboat',
+        '3 Rek\'Sai - Breacher',
+        '',
+        'Battlefields:',
+        '1 Monastery of Hirana',
+        '1 Trifarian War Camp',
+        '1 Zaun Warrens',
+        '',
+        'Runes:',
+        '8 Order Rune',
+        '4 Fury Rune'
+    ].join('\n');
     const error = document.createElement('p');
     error.className = 'deck-import-error';
     error.hidden = true;

@@ -1,7 +1,7 @@
 import { Entity, Script, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
-import { showPlayerBattlefield } from './battlefield.ts';
+import { clearBattlefieldChooser, presentBattlefieldChoices, showPlayerBattlefield } from './battlefield.ts';
 import { resolveDeck } from './cardCatalog.ts';
 import type { DeckList } from './cardCatalog.ts';
 import { cancelCardMotion, moveCardTo } from './cardMotion.ts';
@@ -245,6 +245,7 @@ export class CardDeck extends Script {
     load(list: DeckList) {
         const token = ++this.loadToken;
         setCameraEnabled(this.app, true);
+        clearBattlefieldChooser();
         this.clearPlay();
         void this.deal(list, token);
     }
@@ -255,6 +256,7 @@ export class CardDeck extends Script {
             return;
         }
         if (!resolved) {
+            clearBattlefieldChooser();
             showPlayerBattlefield(null);
             return;
         }
@@ -269,7 +271,9 @@ export class CardDeck extends Script {
         if (resolved.champion && championZone instanceof CardChampion) {
             championZone.place(resolved.champion.art, resolved.champion.back);
         }
-        showPlayerBattlefield(resolved.battlefield);
+        clearBattlefieldChooser();
+        showPlayerBattlefield(null);
+        presentBattlefieldChoices(resolved.battlefields);
     }
 
     placeLegend(art: string, back: string) {

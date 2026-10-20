@@ -986,6 +986,43 @@ export const createStaticCard = (
     return card;
 };
 
+/** Double-sided card: face on top, back on the underside. Caller can pitch it upright. */
+export const createDoubleSidedCard = (
+    parent: Entity,
+    device: GraphicsDevice,
+    x: number,
+    y: number,
+    z: number,
+    width: number,
+    depth: number,
+    frontUrl: string,
+    backUrl: string,
+    name: string,
+    rotateFront = false
+) => {
+    const { card, face } = buildCardShell(parent, device, x, z, width, depth, name);
+    card.setLocalPosition(x, y, z);
+
+    const backMaterial = new StandardMaterial();
+    backMaterial.diffuse.fromString('#ffffff');
+    backMaterial.useLighting = false;
+    backMaterial.update();
+    const back = addMeshInstance(card, 'card-back', faceMesh(device, width, depth), backMaterial, 0.06);
+    back.setLocalEulerAngles(180, 0, 0);
+
+    const loadFront = rotateFront ? textureRotatedFor : textureFor;
+    void loadFront(device, frontUrl).then((texture) => {
+        face.diffuseMap = texture;
+        face.update();
+    });
+    // Battlefield backs are portrait; rotate so they match the landscape shell.
+    void textureRotatedFor(device, backUrl).then((texture) => {
+        backMaterial.diffuseMap = texture;
+        backMaterial.update();
+    });
+    return card;
+};
+
 export const createPlayableCard = (
     parent: Entity,
     device: GraphicsDevice,

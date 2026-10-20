@@ -13,6 +13,7 @@ type Slide = {
     toZ: number;
     elapsed: number;
     duration: number;
+    onComplete?: () => void;
 };
 
 const slides = new Map<Entity, Slide>();
@@ -25,7 +26,7 @@ export const bindCardMotion = (app: AppBase) => {
         if (slides.size === 0) {
             return;
         }
-        for (const [card, slide] of slides) {
+        for (const [card, slide] of [...slides]) {
             slide.elapsed += dt;
             const t = Math.min(1, slide.elapsed / slide.duration);
             const eased = easeOut(t);
@@ -36,6 +37,7 @@ export const bindCardMotion = (app: AppBase) => {
             );
             if (t >= 1) {
                 slides.delete(card);
+                slide.onComplete?.();
             }
         }
     });
@@ -45,12 +47,19 @@ export const cancelCardMotion = (card: Entity) => {
     slides.delete(card);
 };
 
-export const moveCardTo = (card: Entity, x: number, y: number, z: number) => {
+export const moveCardTo = (
+    card: Entity,
+    x: number,
+    y: number,
+    z: number,
+    options?: { duration?: number; onComplete?: () => void }
+) => {
     const position = card.getLocalPosition();
     const distance = Math.hypot(x - position.x, y - position.y, z - position.z);
     if (distance < 0.02) {
         slides.delete(card);
         card.setLocalPosition(x, y, z);
+        options?.onComplete?.();
         return;
     }
     slides.set(card, {
@@ -61,6 +70,7 @@ export const moveCardTo = (card: Entity, x: number, y: number, z: number) => {
         toY: y,
         toZ: z,
         elapsed: 0,
-        duration: Math.min(maxDuration, Math.max(minDuration, distance * secondsPerUnit))
+        duration: options?.duration ?? Math.min(maxDuration, Math.max(minDuration, distance * secondsPerUnit)),
+        onComplete: options?.onComplete
     });
 };

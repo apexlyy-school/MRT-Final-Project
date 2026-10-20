@@ -243,7 +243,7 @@ export const createBoard = (app: AppBase) => {
 
     const lists = loadDeckLists();
     const imported = takeImportedDeck();
-    const initial = lists.find((list) => list.name === imported) ?? lists.find((list) => list.name === 'Sample') ?? lists[0];
+    const initial = lists.find((list) => list.name === imported) ?? lists.find((list) => list.name === 'Select Deck') ?? lists[0];
     if (initial) {
         const pileHalfDepth = (cardDepth + cardFit) / 2;
         const pileHalfWidth = (cardWidth + cardFit) / 2;

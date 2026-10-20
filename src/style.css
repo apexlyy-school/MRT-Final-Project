@@ -63,6 +63,12 @@ canvas {
     font: 1rem/1.4 Arial, sans-serif;
 }
 
+.deck-import-text::placeholder {
+    color: rgba(154, 175, 198, 0.55);
+    opacity: 1;
+    white-space: pre-wrap;
+}
+
 .deck-import-error {
     margin: 0;
     color: #ffb4b4;
@@ -75,6 +81,75 @@ canvas {
 
 .deck-import-submit {
     height: 2.75rem;
+    border: 2px solid #7ee8c8;
+    background: #23456f;
+    color: #7ee8c8;
+    font: 600 1rem/1 Arial, sans-serif;
+    cursor: pointer;
+}
+
+.welcome {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(8, 16, 32, 0.72);
+}
+
+.welcome-panel {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: min(36rem, calc(100vw - 3rem));
+    height: min(28rem, calc(100vh - 3rem));
+    padding: 1.5rem 1.25rem 1.25rem;
+    background: #1a3258;
+    border: 2px solid #5d7598;
+}
+
+.welcome-body {
+    box-sizing: border-box;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.25rem;
+    min-height: 0;
+    padding: 2rem 1.75rem;
+    border: 2px solid #5d7598;
+    background: #122545;
+}
+
+.welcome-title {
+    margin: 0;
+    color: #e4edf6;
+    font: 700 1.85rem/1.2 Arial, sans-serif;
+    text-align: center;
+}
+
+.welcome-copy {
+    margin: 0;
+    max-width: 28rem;
+    color: #9aafc6;
+    font: 1.05rem/1.5 Arial, sans-serif;
+    text-align: center;
+}
+
+.welcome-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+.welcome-close {
+    min-width: 6.5rem;
+    height: 2.75rem;
+    padding: 0 1.25rem;
     border: 2px solid #7ee8c8;
     background: #23456f;
     color: #7ee8c8;

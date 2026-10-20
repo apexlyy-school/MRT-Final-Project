@@ -122,20 +122,25 @@ export const resolveDeck = async (list: DeckList) => {
         return null;
     }
     const championName = list.champion?.trim() ?? '';
-    const battlefieldName = list.battlefields?.find((entry) => Math.floor(entry.count) >= 1)?.name.trim() ?? '';
-    const [copies, runes, legendArt, championArt, battlefieldCard] = await Promise.all([
+    const battlefieldNames = [...new Set(
+        (list.battlefields ?? [])
+            .filter((entry) => Math.floor(entry.count) >= 1)
+            .map((entry) => entry.name.trim())
+            .filter(Boolean)
+    )];
+    const [copies, runes, legendArt, championArt, ...battlefieldArts] = await Promise.all([
         expand(list.main, list.name),
         expand(runeEntries, list.name),
         legendName ? artFor(legendName, list.name) : Promise.resolve(null),
         championName ? artFor(championName, list.name) : Promise.resolve(null),
-        battlefieldName ? cardByName(battlefieldName) : Promise.resolve(null)
+        ...battlefieldNames.map((name) => artFor(name, list.name))
     ]);
     if (!copies || !runes || (legendName && !legendArt) || (championName && !championArt)) {
         return null;
     }
-    const battlefieldArt = battlefieldCard ? proxiedCardImage(battlefieldCard.image) : null;
-    if (battlefieldName && !battlefieldArt) {
-        console.warn(`Deck "${list.name}" is using the blank battlefield because "${battlefieldName}" could not be loaded.`);
+    const battlefields = battlefieldArts.filter((art): art is string => Boolean(art));
+    if (battlefieldNames.length > 0 && battlefields.length === 0) {
+        console.warn(`Deck "${list.name}" has no usable battlefield art; battlefield 1 will stay blank.`);
     }
     return {
         back: backUrl,
@@ -144,7 +149,7 @@ export const resolveDeck = async (list: DeckList) => {
         runes,
         legend: legendName && legendArt ? { art: legendArt, back: legendBackUrl } : null,
         champion: championName && championArt ? { art: championArt, back: backUrl } : null,
-        battlefield: battlefieldArt
+        battlefields
     };
 };
 
