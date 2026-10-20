@@ -260,6 +260,8 @@ export class PlayableCard extends Script {
     private tapped = false;
     private yaw = 0;
     private yawTarget = 0;
+    /** Last seating zone. Re-entering the same zone keeps tap orientation. */
+    private seat: string | null = null;
     private holding = false;
     private dragging = false;
     private pointerStart = { x: 0, y: 0 };
@@ -464,6 +466,20 @@ export class PlayableCard extends Script {
         }
     }
 
+    /** Apply a zone's default tap only when entering from a different seat. */
+    private applySeat(seat: string, defaultTapped: boolean) {
+        const keep = this.seat === seat;
+        this.seat = seat;
+        if (keep) {
+            return;
+        }
+        this.tapped = defaultTapped;
+        const yaw = defaultTapped ? -90 : 0;
+        this.yaw = yaw;
+        this.yawTarget = yaw;
+        this.entity.setLocalEulerAngles(0, yaw, 0);
+    }
+
     /** Square the card, turn it face down, and stop it taking its own clicks. */
     joinDeck() {
         if (this.inHand) {
@@ -488,10 +504,7 @@ export class PlayableCard extends Script {
         }
         this.leaveBattlefield();
         this.inDeck = true;
-        this.tapped = false;
-        this.yaw = 0;
-        this.yawTarget = 0;
-        this.entity.setLocalEulerAngles(0, 0, 0);
+        this.applySeat('deck', false);
         this.setFaceUp(false);
     }
 
@@ -516,10 +529,7 @@ export class PlayableCard extends Script {
         this.leaveBattlefield();
         this.inDeck = false;
         this.inHand = true;
-        this.tapped = false;
-        this.yaw = 0;
-        this.yawTarget = 0;
-        this.entity.setLocalEulerAngles(0, 0, 0);
+        this.applySeat('hand', false);
         this.setFaceUp(true);
     }
 
@@ -547,10 +557,7 @@ export class PlayableCard extends Script {
         }
         this.leaveBattlefield();
         this.inRuneArea = true;
-        this.tapped = false;
-        this.yaw = 0;
-        this.yawTarget = 0;
-        this.entity.setLocalEulerAngles(0, 0, 0);
+        this.applySeat('rune', false);
         this.setFaceUp(true);
     }
 
@@ -578,10 +585,7 @@ export class PlayableCard extends Script {
         }
         this.leaveBattlefield();
         this.inTrash = true;
-        this.tapped = false;
-        this.yaw = 0;
-        this.yawTarget = 0;
-        this.entity.setLocalEulerAngles(0, 0, 0);
+        this.applySeat('trash', false);
         this.setFaceUp(true);
     }
 
@@ -609,14 +613,11 @@ export class PlayableCard extends Script {
         }
         this.leaveBattlefield();
         this.inChampion = true;
-        this.tapped = false;
-        this.yaw = 0;
-        this.yawTarget = 0;
-        this.entity.setLocalEulerAngles(0, 0, 0);
+        this.applySeat('champion', false);
         this.setFaceUp(true);
     }
 
-    /** Face up in the base, already turned sideways. */
+    /** Face up in the base. New arrivals enter tapped; re-seats keep orientation. */
     joinBase() {
         if (this.inDeck) {
             this.inDeck = false;
@@ -640,15 +641,12 @@ export class PlayableCard extends Script {
         }
         this.leaveBattlefield();
         this.inBase = true;
-        this.tapped = true;
-        this.yaw = -90;
-        this.yawTarget = -90;
-        this.entity.setLocalEulerAngles(0, -90, 0);
+        this.applySeat('base', true);
         this.setFaceUp(true);
     }
 
-    /** Face up on a battlefield row, already turned sideways. A click stands it up. */
-    joinBattlefield() {
+    /** Face up on a battlefield row. New arrivals enter tapped; re-seats keep orientation. */
+    joinBattlefield(lane = 1) {
         if (this.inDeck) {
             this.inDeck = false;
             deckRelease?.(this.entity);
@@ -674,10 +672,7 @@ export class PlayableCard extends Script {
             baseRelease?.(this.entity);
         }
         this.inBattlefield = true;
-        this.tapped = true;
-        this.yaw = -90;
-        this.yawTarget = -90;
-        this.entity.setLocalEulerAngles(0, -90, 0);
+        this.applySeat(`battlefield-${lane}`, true);
         this.setFaceUp(true);
     }
 

@@ -119,7 +119,7 @@ export class CardHand extends Script {
     private seat(card: Entity) {
         const playable = playableOn(card);
         if (this.battlefield > 0) {
-            playable?.joinBattlefield();
+            playable?.joinBattlefield(this.battlefield);
         } else if (this.base) {
             playable?.joinBase();
         } else if (this.rune) {
