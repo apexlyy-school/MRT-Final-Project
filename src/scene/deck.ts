@@ -76,6 +76,7 @@ export class CardDeck extends Script {
     private zoneLabel: Entity | null = null;
 
     private loadToken = 0;
+    private currentList: DeckList | null = null;
     private holding: Entity | null = null;
     private dragging = false;
     private pointerStart = { x: 0, y: 0 };
@@ -243,11 +244,20 @@ export class CardDeck extends Script {
     }
 
     load(list: DeckList) {
+        this.currentList = list;
         const token = ++this.loadToken;
         setCameraEnabled(this.app, true);
         clearBattlefieldChooser();
         this.clearPlay();
         void this.deal(list, token);
+    }
+
+    /** Reload the active list: reshuffle piles, reseat identity cards, and reopen battlefield choice. */
+    reload() {
+        if (!this.currentList) {
+            return;
+        }
+        this.load(this.currentList);
     }
 
     private async deal(list: DeckList, token: number) {

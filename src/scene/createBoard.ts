@@ -11,6 +11,7 @@ import { addZoneLabel } from './emptySlot.ts';
 import { addEndTurn } from './endTurn.ts';
 import { addHand } from './hand.ts';
 import { takeImportedDeck } from './importDeck.ts';
+import { addReset } from './reset.ts';
 import { addScoreTrack, scoreColumnMidOffset, scoreRadius } from './scoreTrack.ts';
 import { addTrash } from './trash.ts';
 
@@ -265,4 +266,11 @@ export const createBoard = (app: AppBase) => {
     const plateZ = battlefieldNear + 1.168 + scoreRadius + 0.08 + plateDepth / 2;
     addMesh(board, 'player-plate', 'box', [1.5, 0.02, plateDepth], [plateX, 0.05, plateZ], '#10243f');
     addMesh(board, 'opponent-plate', 'box', [1.7, 0.02, 0.55], [4.85, 0.05, -3.05], '#10243f');
+
+    // Reset sits just under the player nameplate.
+    const resetWidth = 1.15;
+    const resetDepth = 0.4;
+    const resetGap = 0.12;
+    const resetZ = plateZ + plateDepth / 2 + resetGap + resetDepth / 2;
+    addReset(board, app.graphicsDevice, plateX, resetZ, resetWidth, resetDepth);
 };

@@ -228,6 +228,13 @@ export class ScoreTrack extends Script {
         this.target = Math.min(this.buttons.length - 1, this.target + Math.floor(amount));
     }
 
+    /** Return the track to score 0. */
+    reset() {
+        this.progress = 0;
+        this.target = 0;
+        this.applyProgress();
+    }
+
     private pick(event: PointerEvent) {
         const cameraNode = this.app.root.findByName('camera');
         const camera = cameraNode instanceof Entity ? cameraNode.camera : null;
