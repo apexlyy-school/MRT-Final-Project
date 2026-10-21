@@ -75,6 +75,8 @@ export class CardDeck extends Script {
     private legendMark: Entity | null = null;
     private zoneLabel: Entity | null = null;
 
+    private static readonly listeners = new Set<() => void>();
+
     private loadToken = 0;
     private currentList: DeckList | null = null;
     private holding: Entity | null = null;
@@ -243,24 +245,51 @@ export class CardDeck extends Script {
         return true;
     }
 
-    load(list: DeckList) {
+    load(list: DeckList, options?: { autoBattlefield?: boolean; openingDraw?: boolean }) {
         this.currentList = list;
         const token = ++this.loadToken;
         setCameraEnabled(this.app, true);
         clearBattlefieldChooser();
         this.clearPlay();
-        void this.deal(list, token);
+        void this.deal(list, token, options);
+        CardDeck.notifyDeckChange();
     }
 
     /** Reload the active list: reshuffle piles, reseat identity cards, and reopen battlefield choice. */
-    reload() {
+    reload(options?: { autoBattlefield?: boolean; openingDraw?: boolean }) {
         if (!this.currentList) {
             return;
         }
-        this.load(this.currentList);
+        this.load(this.currentList, options);
     }
 
-    private async deal(list: DeckList, token: number) {
+    activeName() {
+        return this.currentList?.name ?? null;
+    }
+
+    private static notifyDeckChange() {
+        for (const listener of CardDeck.listeners) {
+            listener();
+        }
+    }
+
+    /** Fires whenever the main deck finishes starting a load. */
+    static onDeckChange(listener: () => void) {
+        CardDeck.listeners.add(listener);
+        return () => {
+            CardDeck.listeners.delete(listener);
+        };
+    }
+
+    static mainPile() {
+        return CardDeck.piles.find((pile) => !pile.rune) ?? null;
+    }
+
+    private async deal(
+        list: DeckList,
+        token: number,
+        options?: { autoBattlefield?: boolean; openingDraw?: boolean }
+    ) {
         const resolved = await resolveDeck(list);
         if (token !== this.loadToken) {
             return;
@@ -282,8 +311,21 @@ export class CardDeck extends Script {
             championZone.place(resolved.champion.art, resolved.champion.back);
         }
         clearBattlefieldChooser();
-        showPlayerBattlefield(null);
-        presentBattlefieldChoices(resolved.battlefields);
+        const first = resolved.battlefields[0] ?? null;
+        if (options?.autoBattlefield && first) {
+            showPlayerBattlefield(first);
+        } else {
+            showPlayerBattlefield(null);
+            presentBattlefieldChoices(resolved.battlefields);
+        }
+        if (options?.openingDraw) {
+            for (let i = 0; i < 4; i++) {
+                mainPile?.drawTop();
+            }
+            for (let i = 0; i < 2; i++) {
+                runePile?.drawTop();
+            }
+        }
     }
 
     placeLegend(art: string, back: string) {

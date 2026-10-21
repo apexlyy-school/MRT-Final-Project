@@ -156,3 +156,96 @@ canvas {
     font: 600 1rem/1 Arial, sans-serif;
     cursor: pointer;
 }
+
+.tutorial-toggle {
+    position: fixed;
+    top: 1rem;
+    left: 1rem;
+    z-index: 4;
+    min-width: 8.5rem;
+    height: 2.5rem;
+    padding: 0 1rem;
+    border: 2px solid #7ee8c8;
+    background: #23456f;
+    color: #7ee8c8;
+    font: 600 0.95rem/1 Arial, sans-serif;
+    cursor: pointer;
+}
+
+.tutorial-toggle:disabled {
+    border-color: #5d7598;
+    background: #1a3258;
+    color: #5d7598;
+    cursor: not-allowed;
+}
+
+.tutorial-toggle-active {
+    border-color: #ffb4b4;
+    color: #ffb4b4;
+}
+
+.tutorial-callout {
+    position: fixed;
+    z-index: 5;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: min(14rem, calc(100vw - 2rem));
+    padding: 0.65rem;
+    border: 2px solid #5d7598;
+    background: #1a3258;
+    pointer-events: auto;
+}
+
+.tutorial-callout-right {
+    transform: translate(0.35rem, -50%);
+}
+
+.tutorial-callout-left {
+    transform: translate(calc(-100% - 0.35rem), -50%);
+}
+
+.tutorial-callout-above {
+    transform: translate(-50%, calc(-100% - 0.5rem));
+}
+
+.tutorial-callout[hidden] {
+    display: none;
+}
+
+.tutorial-callout-title {
+    margin: 0;
+    color: #e4edf6;
+    font: 700 1.05rem/1.25 Arial, sans-serif;
+}
+
+.tutorial-callout-body {
+    margin: 0;
+    color: #9aafc6;
+    font: 0.95rem/1.45 Arial, sans-serif;
+}
+
+.tutorial-callout-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
+.tutorial-callout-progress {
+    color: #7a91ab;
+    font: 600 0.8rem/1 Arial, sans-serif;
+    letter-spacing: 0.02em;
+}
+
+.tutorial-callout-next {
+    min-width: 5.5rem;
+    height: 2.25rem;
+    padding: 0 1rem;
+    border: 2px solid #7ee8c8;
+    background: #23456f;
+    color: #7ee8c8;
+    font: 600 0.95rem/1 Arial, sans-serif;
+    cursor: pointer;
+}

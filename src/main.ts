@@ -18,6 +18,7 @@ import {
 import { CameraControls } from 'playcanvas/scripts/esm/camera-controls.mjs';
 
 import { createBoard } from './scene/createBoard.ts';
+import { mountTutorial } from './tutorial.ts';
 import { mountWelcome } from './welcome.ts';
 import './style.css';
 
@@ -55,6 +56,7 @@ const background = '#122545';
 app.scene.ambientLight = new Color(0.55, 0.62, 0.74);
 
 createBoard(app);
+mountTutorial(app);
 mountWelcome();
 
 // Start almost overhead, looking at the middle of the board. Drag to orbit.
