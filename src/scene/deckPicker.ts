@@ -350,7 +350,8 @@ export const mountDeckPicker = (
                 return;
             }
             if (!saved) {
-                error.textContent = 'Failed to import decklist. Please try again.';
+                error.textContent =
+                    'Deck import needs the local dev server. On the hosted demo, use a sample deck instead.';
                 error.hidden = false;
                 submit.disabled = false;
                 submit.textContent = 'Import';
