@@ -12,7 +12,8 @@
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
         "start": "vite preview",
-        "typecheck": "tsc --noEmit"
+        "typecheck": "tsc --noEmit",
+        "deploy": "npm run build && wrangler deploy"
     },
     "dependencies": {
         "playcanvas": "^2.23.1"
